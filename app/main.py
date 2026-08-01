@@ -10,7 +10,7 @@ from app.logger import logger
 
 app = FastAPI(
     title="Crypto Alert",
-    version="2.1.0"
+    version="2.2.0"
 )
 
 
@@ -19,7 +19,7 @@ def root():
 
     return {
         "service": "Crypto Alert",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "status": "running"
     }
 
@@ -36,35 +36,44 @@ def health():
 @app.get("/scan")
 def scan():
 
-    try:
+    market=get_market()
 
-        market = get_market()
-
-        alerts = []
+    alerts=[]
 
 
-        for coin, price in market.items():
+    for coin,data in market.items():
 
-            result = analyze(
-                coin,
-                price
-            )
-
-            alerts.append(result)
+        result=analyze(
+            coin,
+            data
+        )
 
 
-            if result["signal"] != "WAIT":
+        alerts.append(result)
 
-                msg = f"""
-🚨 Crypto Alert
 
-Coin: {coin}/USDT
+        if result["signal"]!="WAIT":
+
+            msg=f"""
+🚨 Crypto Alert V2.2
+
+Coin:
+{coin}/USDT
 
 Price:
-{price}
+{result['price']}
 
 Signal:
 {result['signal']}
+
+Confidence:
+{result['confidence']}%
+
+RSI:
+{result['rsi']}
+
+Reason:
+{', '.join(result['reason'])}
 
 Support:
 {result['support']}
@@ -73,22 +82,11 @@ Resistance:
 {result['resistance']}
 """
 
-                send_message(msg)
+            send_message(msg)
 
 
-        return {
-            "status": "success",
-            "data": alerts
-        }
-
-
-    except Exception as e:
-
-        logger.error(
-            f"Scanner error: {e}"
-        )
-
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+    return {
+        "status":"success",
+        "version":"2.2.0",
+        "data":alerts
+    }
