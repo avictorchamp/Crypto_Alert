@@ -1,33 +1,37 @@
 import requests
 
 
-BINANCE_URL = "https://api.binance.com/api/v3/ticker/price"
+def get_price(coin):
+
+    url = "https://api.coingecko.com/api/v3/simple/price"
+
+    params = {
+        "ids": coin,
+        "vs_currencies": "usd"
+    }
 
 
-def get_price(symbol):
-
-    response = requests.get(
-        BINANCE_URL,
-        params={
-            "symbol": symbol
-        },
+    r = requests.get(
+        url,
+        params=params,
         timeout=10
     )
 
-    data = response.json()
 
-    if "price" not in data:
-        raise Exception(
-            f"Binance Error: {data}"
-        )
+    data = r.json()
 
-    return float(data["price"])
+    return float(
+        data[coin]["usd"]
+    )
 
 
 
 def get_market():
 
     return {
-        "XRP": get_price("XRPUSDT"),
-        "ETH": get_price("ETHUSDT")
+
+        "XRP": get_price("ripple"),
+
+        "ETH": get_price("ethereum")
+
     }
