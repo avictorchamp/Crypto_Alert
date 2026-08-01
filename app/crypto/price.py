@@ -16,7 +16,13 @@ def get_price(symbol):
 
     data = response.json()
 
+    if "price" not in data:
+        raise Exception(
+            f"Binance Error: {data}"
+        )
+
     return float(data["price"])
+
 
 
 def get_market():
