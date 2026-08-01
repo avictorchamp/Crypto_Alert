@@ -1,39 +1,18 @@
 import requests
-import time
 
 
-CACHE = {}
-CACHE_TIME = 300
-
-
-COINCAP_URL = (
-    "https://api.coincap.io/v2/assets"
+CRYPTOCOMPARE_URL = (
+    "https://min-api.cryptocompare.com/data/pricemulti"
 )
 
 
-COINS = {
-    "XRP": "xrp",
-    "ETH": "ethereum"
-}
-
-
-def get_price(asset):
-
-    now = time.time()
-
-
-    if asset in CACHE:
-
-        old = CACHE[asset]
-
-        if now - old["time"] < CACHE_TIME:
-            return old["price"]
-
+def get_market():
 
     response = requests.get(
-        COINCAP_URL,
+        CRYPTOCOMPARE_URL,
         params={
-            "ids": asset
+            "fsyms": "XRP,ETH",
+            "tsyms": "USD"
         },
         timeout=10
     )
@@ -42,27 +21,20 @@ def get_price(asset):
     data = response.json()
 
 
-    price = float(
-        data["data"][0]["priceUsd"]
-    )
+    if "XRP" not in data or "ETH" not in data:
+        raise Exception(
+            f"CryptoCompare Error: {data}"
+        )
 
-
-    CACHE[asset] = {
-        "price": price,
-        "time": now
-    }
-
-
-    return price
-
-
-
-def get_market():
 
     return {
 
-        "XRP": get_price("xrp"),
+        "XRP": float(
+            data["XRP"]["USD"]
+        ),
 
-        "ETH": get_price("ethereum")
+        "ETH": float(
+            data["ETH"]["USD"]
+        )
 
     }
