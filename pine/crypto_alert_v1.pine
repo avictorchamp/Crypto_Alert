@@ -1,0 +1,10 @@
+//@version=6
+indicator("Crypto Alert V1",overlay=true)
+r=ta.rsi(close,14)
+e50=ta.ema(close,50)
+e200=ta.ema(close,200)
+v=volume>ta.sma(volume,20)
+[macd,sig,_]=ta.macd(close,12,26,9)
+buy=r<35 and ta.crossover(macd,sig) and e50>e200 and v
+plotshape(buy,style=shape.labelup,text="BUY")
+alertcondition(buy,title="BUY",message="{\"message\":\"BUY {{ticker}} {{close}}\"}")
