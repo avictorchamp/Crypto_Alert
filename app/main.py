@@ -46,7 +46,7 @@ def scan():
         if result["signal"] != "WAIT":
 
             msg = f"""
-🚨 Crypto Alert
+Crypto Alert
 
 Coin: {coin}/USDT
 
