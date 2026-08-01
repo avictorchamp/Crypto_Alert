@@ -1,1 +1,1 @@
-# Crypto Alert V1
+# Crypto Alert V2.0.0
