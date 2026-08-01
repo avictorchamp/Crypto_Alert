@@ -1,58 +1,57 @@
 import requests
-from app.crypto.cache import cache_get, cache_set
 
 
-COINS = [
+COINS=[
     "BTCUSDT",
     "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
     "XRPUSDT"
 ]
 
 
+
 def get_market():
 
-    cache = cache_get("market")
+    result={}
 
-    if cache:
-        return cache
-
-
-    result = {}
 
     for symbol in COINS:
 
-        url = (
-            "https://api.binance.com/api/v3/ticker/price"
-            f"?symbol={symbol}"
+
+        url=(
+        "https://api.binance.com/api/v3/klines"
+        f"?symbol={symbol}"
+        "&interval=1h"
+        "&limit=50"
         )
 
 
-        r = requests.get(
+        response=requests.get(
             url,
             timeout=10
         )
 
-        data = r.json()
+
+        candles=response.json()
 
 
-        if "price" in data:
+        prices=[
+            float(c[4])
+            for c in candles
+        ]
 
-            coin = symbol.replace(
+
+        result[
+            symbol.replace(
                 "USDT",
                 ""
             )
+        ] = {
 
-            result[coin] = float(
-                data["price"]
-            )
+            "price":prices[-1],
 
+            "prices":prices
 
-    cache_set(
-        "market",
-        result
-    )
+        }
 
 
     return result
