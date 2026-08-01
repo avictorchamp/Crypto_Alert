@@ -1,3 +1,6 @@
 services:
-- type: web
-  env: docker
+  - type: web
+    name: crypto-alert
+    env: docker
+    plan: free
+    healthCheckPath: /health
