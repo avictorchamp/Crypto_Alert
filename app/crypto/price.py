@@ -1,24 +1,31 @@
 import requests
 
 
+COINGECKO_URL = (
+    "https://api.coingecko.com/api/v3/simple/price"
+)
+
+
 def get_price(coin):
 
-    url = "https://api.coingecko.com/api/v3/simple/price"
-
-    params = {
-        "ids": coin,
-        "vs_currencies": "usd"
-    }
-
-
-    r = requests.get(
-        url,
-        params=params,
+    response = requests.get(
+        COINGECKO_URL,
+        params={
+            "ids": coin,
+            "vs_currencies": "usd"
+        },
         timeout=10
     )
 
 
-    data = r.json()
+    data = response.json()
+
+
+    if coin not in data:
+        raise Exception(
+            f"CoinGecko Error: {data}"
+        )
+
 
     return float(
         data[coin]["usd"]
