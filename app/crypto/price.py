@@ -14,6 +14,9 @@ def get_price(coin):
             "ids": coin,
             "vs_currencies": "usd"
         },
+        headers={
+            "accept": "application/json"
+        },
         timeout=10
     )
 
@@ -22,8 +25,9 @@ def get_price(coin):
 
 
     if coin not in data:
+
         raise Exception(
-            f"CoinGecko Error: {data}"
+            f"CoinGecko response error: {data}"
         )
 
 
@@ -37,7 +41,7 @@ def get_market():
 
     return {
 
-        "XRP": get_price("ripple"),
+        "XRP": get_price("xrp"),
 
         "ETH": get_price("ethereum")
 
