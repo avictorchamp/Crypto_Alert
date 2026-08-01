@@ -1,21 +1,39 @@
 import requests
+import time
 
 
-COINGECKO_URL = (
-    "https://api.coingecko.com/api/v3/simple/price"
+CACHE = {}
+CACHE_TIME = 300
+
+
+COINCAP_URL = (
+    "https://api.coincap.io/v2/assets"
 )
 
 
-def get_price(coin):
+COINS = {
+    "XRP": "xrp",
+    "ETH": "ethereum"
+}
+
+
+def get_price(asset):
+
+    now = time.time()
+
+
+    if asset in CACHE:
+
+        old = CACHE[asset]
+
+        if now - old["time"] < CACHE_TIME:
+            return old["price"]
+
 
     response = requests.get(
-        COINGECKO_URL,
+        COINCAP_URL,
         params={
-            "ids": coin,
-            "vs_currencies": "usd"
-        },
-        headers={
-            "accept": "application/json"
+            "ids": asset
         },
         timeout=10
     )
@@ -24,16 +42,18 @@ def get_price(coin):
     data = response.json()
 
 
-    if coin not in data:
-
-        raise Exception(
-            f"CoinGecko response error: {data}"
-        )
-
-
-    return float(
-        data[coin]["usd"]
+    price = float(
+        data["data"][0]["priceUsd"]
     )
+
+
+    CACHE[asset] = {
+        "price": price,
+        "time": now
+    }
+
+
+    return price
 
 
 
