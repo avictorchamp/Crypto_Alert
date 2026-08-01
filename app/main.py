@@ -5,6 +5,7 @@ from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
 
 from app.config import VERSION
+from app.logger import logger
 
 
 app = FastAPI(
@@ -13,40 +14,49 @@ app = FastAPI(
 )
 
 
-
 @app.get("/")
 def root():
 
     return {
-        "service":"Crypto Alert",
-        "version":"2.1.0",
-        "status":"running"
+        "service": "Crypto Alert",
+        "version": "2.1.0",
+        "status": "running"
     }
 
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "healthy",
+        "version": VERSION
+    }
 
 
 @app.get("/scan")
 def scan():
 
-    market = get_market()
+    try:
 
-    alerts=[]
+        market = get_market()
 
-
-    for coin,price in market.items():
-
-        result = analyze(
-            coin,
-            price
-        )
-
-        alerts.append(result)
+        alerts = []
 
 
-        if result["signal"] != "WAIT":
+        for coin, price in market.items():
 
-            msg = f"""
-Crypto Alert
+            result = analyze(
+                coin,
+                price
+            )
+
+            alerts.append(result)
+
+
+            if result["signal"] != "WAIT":
+
+                msg = f"""
+🚨 Crypto Alert
 
 Coin: {coin}/USDT
 
@@ -63,7 +73,22 @@ Resistance:
 {result['resistance']}
 """
 
-            send_message(msg)
+                send_message(msg)
 
 
-    return alerts
+        return {
+            "status": "success",
+            "data": alerts
+        }
+
+
+    except Exception as e:
+
+        logger.error(
+            f"Scanner error: {e}"
+        )
+
+        return {
+            "status": "error",
+            "message": str(e)
+        }
