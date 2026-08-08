@@ -7,7 +7,7 @@ from app.crypto.analyzer import analyze
 from app.scheduler import start_scheduler, scheduler_status
 from app.telegram.bot import send_message
 
-VERSION = "2.4.0"
+VERSION = "2.4.1"
 
 
 def build_alert_message(result):
