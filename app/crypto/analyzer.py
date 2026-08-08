@@ -5,7 +5,6 @@ from app.crypto.indicators import (
 )
 from app.crypto.strategy import generate_signal
 
-
 def analyze(coin, data):
     prices = data["prices"]
     price = data["price"]
@@ -13,7 +12,6 @@ def analyze(coin, data):
     rsi = calculate_rsi(prices)
     ema20 = calculate_ema(prices, 20)
     ema50 = calculate_ema(prices, 50)
-
     support, resistance = support_resistance(prices)
 
     result = generate_signal(

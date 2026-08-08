@@ -1,13 +1,11 @@
 def _clamp(value, low=0, high=100):
     return max(low, min(high, int(round(value))))
 
-
 def generate_signal(rsi, ema20, ema50, price, support, resistance):
-    score = 50
-    reasons = []
-
     bullish_trend = ema20 > ema50
     bearish_trend = ema20 < ema50
+    reasons = []
+    score = 50
 
     if bullish_trend:
         score += 15
@@ -17,33 +15,39 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         reasons.append("EMA Bearish Trend")
 
     if rsi < 35:
-        score += 15
+        score += 10
         reasons.append("RSI Oversold")
     elif rsi > 70:
         score -= 15
         reasons.append("RSI Overbought")
 
-    # Distance from support/resistance as a percentage.
-    support_distance = ((price - support) / price * 100) if price else 999
-    resistance_distance = ((resistance - price) / price * 100) if price else 999
+    entry_low = float(support)
+    entry_high = round(support * 1.005, 8)
 
-    near_support = 0 <= support_distance <= 1.5
-    near_resistance = 0 <= resistance_distance <= 1.5
+    near_support = (
+        price >= support and
+        ((price - support) / price * 100) <= 1.5
+    )
 
-    if near_support and bullish_trend and rsi < 65:
+    if near_support:
         score += 15
         reasons.append("Price Near Support")
-    elif near_resistance:
-        score -= 5
-        reasons.append("Near Resistance")
 
-    confidence = _clamp(score)
+    stop_loss = round(support * 0.99, 8)
+    entry_mid = (entry_low + entry_high) / 2
+    risk = max(entry_mid - stop_loss, 0.0)
 
-    # BUY SETUP: trend + price near support + RSI not overbought.
-    buy_setup = bullish_trend and near_support and rsi < 65
+    tp1 = round(float(resistance), 8)
+    tp2 = round(entry_mid + risk * 2.0, 8)
 
-    # STRONG BUY requires an additional RSI/momentum confirmation.
-    strong_buy = buy_setup and rsi <= 50
+    reward_tp1 = max(tp1 - entry_mid, 0.0)
+    risk_reward = round(reward_tp1 / risk, 2) if risk > 0 else None
+
+    valid_rr = risk_reward is not None and risk_reward >= 1.0
+    strong_rr = risk_reward is not None and risk_reward >= 2.0
+
+    buy_setup = bullish_trend and near_support and rsi < 65 and valid_rr
+    strong_buy = buy_setup and strong_rr and rsi <= 55
 
     if strong_buy:
         signal = "STRONG BUY"
@@ -54,35 +58,20 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     else:
         signal = "WAIT"
 
-    entry_low = round(support * 1.000, 8)
-    entry_high = round(support * 1.015, 8)
-
-    # Volatility-free first version: SL below support by 1%.
-    stop_loss = round(support * 0.99, 8)
-
-    # TP1 at resistance; TP2 extends the same risk distance.
-    risk = max(entry_high - stop_loss, 0)
-    take_profit_1 = round(resistance, 8)
-    take_profit_2 = round(entry_high + (risk * 2.0), 8)
-
-    risk_reward = None
-    if entry_high > stop_loss and take_profit_1 > entry_high:
-        risk_reward = round(
-            (take_profit_1 - entry_high) / (entry_high - stop_loss), 2
-        )
+    confidence = _clamp(score)
+    if signal == "WAIT":
+        confidence = min(confidence, 60)
+    elif signal == "BUY SETUP":
+        confidence = max(confidence, 65)
+    elif signal == "STRONG BUY":
+        confidence = max(confidence, 75)
 
     return {
         "signal": signal,
         "confidence": confidence,
         "reason": reasons,
-        "entry": {
-            "low": entry_low,
-            "high": entry_high
-        },
+        "entry": {"low": round(entry_low, 8), "high": round(entry_high, 8)},
         "stop_loss": stop_loss,
-        "take_profit": {
-            "tp1": take_profit_1,
-            "tp2": take_profit_2
-        },
+        "take_profit": {"tp1": tp1, "tp2": tp2},
         "risk_reward": risk_reward
     }
