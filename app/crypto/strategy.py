@@ -3,20 +3,20 @@ def _clamp(value, low=0, high=100):
 
 
 def generate_signal(rsi, ema20, ema50, price, support, resistance):
+
     bullish_trend = ema20 > ema50
     bearish_trend = ema20 < ema50
 
     reasons = []
 
     # =================================================
-    # V2.5.1 Quality Score
+    # V2.5.2 QUALITY SCORE
     #
     # Trend              = 25
     # RSI                = 20
     # Support            = 20
     # Entry Quality      = 15
     # Risk/Reward        = 20
-    #
     # Total              = 100
     # =================================================
 
@@ -83,9 +83,9 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         8
     )
 
-    # -------------------------------------------------
-    # Distance from support
-    # -------------------------------------------------
+    # =================================================
+    # 4. SUPPORT PROXIMITY
+    # =================================================
 
     distance_to_support = (
         ((price - support) / price) * 100
@@ -102,9 +102,14 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
 
         quality += 20
 
-        reasons.append(
-            "Price Near Support"
-        )
+        # Don't duplicate this reason if price
+        # has already moved above the entry zone.
+
+        if price <= entry_high:
+
+            reasons.append(
+                "Price Near Support"
+            )
 
     elif (
         price >= support
@@ -114,47 +119,71 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         quality += 10
 
     # =================================================
-    # 4. ENTRY TIMING FILTER
+    # 5. STRICT ENTRY TIMING
     # =================================================
 
-    # Price is inside the intended entry zone
+    # V2.5.2:
+    #
+    # BUY SETUP is allowed ONLY when:
+    #
+    # entry_low <= price <= entry_high
+    #
+    # No 1% tolerance.
+    # No 2% tolerance.
+    #
+    # Once price moves above entry_high,
+    # the setup is considered late.
+
     in_entry_zone = (
         entry_low <= price <= entry_high
     )
 
-    # Price has moved above the entry zone
-    above_entry_zone = (
+    price_above_entry = (
         price > entry_high
     )
 
-    # -------------------------------------------------
-    # Distance above entry zone
-    #
-    # <= 1%  : still acceptable
-    # 1-2%   : weak
-    # > 2%    : late entry
-    # -------------------------------------------------
+    price_below_entry = (
+        price < entry_low
+    )
+
+    # =================================================
+    # ENTRY QUALITY SCORE
+    # =================================================
 
     if in_entry_zone:
 
-        entry_quality = 15
+        quality += 15
 
     elif price <= entry_high * 1.01:
 
-        entry_quality = 10
+        # Small amount of score can remain for
+        # quality calculation, but this DOES NOT
+        # permit BUY SETUP.
 
-    elif price <= entry_high * 1.02:
-
-        entry_quality = 5
-
-    else:
-
-        entry_quality = 0
-
-    quality += entry_quality
+        quality += 5
 
     # =================================================
-    # STOP LOSS
+    # PRICE ABOVE ENTRY ZONE
+    # =================================================
+
+    if price_above_entry:
+
+        reasons.append(
+            "Price Above Entry Zone"
+        )
+
+    # =================================================
+    # PRICE BELOW ENTRY ZONE
+    # =================================================
+
+    if price_below_entry:
+
+        reasons.append(
+            "Price Below Entry Zone"
+        )
+
+    # =================================================
+    # 6. STOP LOSS
     # =================================================
 
     stop_loss = round(
@@ -172,7 +201,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     )
 
     # =================================================
-    # TAKE PROFIT
+    # 7. TAKE PROFIT
     # =================================================
 
     tp1 = round(
@@ -180,7 +209,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         8
     )
 
-    # TP2 must never be below TP1
+    # TP2 must NEVER be below TP1.
 
     tp2 = round(
         max(
@@ -191,7 +220,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     )
 
     # =================================================
-    # RISK / REWARD
+    # 8. RISK / REWARD
     # =================================================
 
     reward_tp1 = max(
@@ -211,7 +240,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         risk_reward = None
 
     # =================================================
-    # RISK / REWARD SCORE
+    # 9. RISK / REWARD SCORE
     # =================================================
 
     if risk_reward is not None:
@@ -250,18 +279,12 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         and risk_reward >= 2.0
     )
 
-    # -------------------------------------------------
-    # IMPORTANT V2.5.1 RULE
+    # =================================================
+    # BUY SETUP
     #
-    # BUY SETUP requires price to be no more than
-    # 1% above the calculated entry zone.
-    #
-    # This prevents late BUY signals.
-    # -------------------------------------------------
-
-    entry_timing_valid = (
-        price <= entry_high * 1.01
-    )
+    # IMPORTANT:
+    # Price MUST actually be inside Entry Zone.
+    # =================================================
 
     buy_setup = (
 
@@ -275,7 +298,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
 
         and quality_score >= 65
 
-        and entry_timing_valid
+        and in_entry_zone
     )
 
     # =================================================
@@ -285,8 +308,6 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     strong_buy = (
 
         buy_setup
-
-        and in_entry_zone
 
         and strong_rr
 
@@ -314,20 +335,6 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     else:
 
         signal = "WAIT"
-
-    # =================================================
-    # ADD EXPLANATION WHEN PRICE IS TOO HIGH
-    # =================================================
-
-    if (
-        bullish_trend
-        and above_entry_zone
-        and price > entry_high * 1.01
-    ):
-
-        reasons.append(
-            "Price Above Entry Zone"
-        )
 
     # =================================================
     # QUALITY GRADE
@@ -384,7 +391,7 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
         )
 
     # =================================================
-    # RETURN
+    # RESULT
     # =================================================
 
     return {
