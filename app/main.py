@@ -88,10 +88,24 @@ def process_alert(coin, price, result):
 
     if signal not in ALERT_SIGNALS:
 
-        return {
-            "sent": False,
-            "reason": "Signal not alertable"
-        }
+    with state_lock:
+
+        # Reset alert state when signal leaves
+        # the alertable state.
+        last_sent_signal.pop(
+            coin,
+            None
+        )
+
+        last_alert_time.pop(
+            coin,
+            None
+        )
+
+    return {
+        "sent": False,
+        "reason": "Signal not alertable"
+    }
 
     # -----------------------------------------------------
     # Duplicate protection
