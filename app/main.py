@@ -1,9 +1,9 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
-
 from app.config import VERSION
 
 import threading
@@ -18,11 +18,11 @@ app = FastAPI(
 
 # =========================================================
 # V2.5.5
-# ALERT COOLDOWN + SIGNAL RECOVERY
+# SMART ALERT + DUPLICATE PROTECTION + TEST MODE
 # =========================================================
 
-SCAN_INTERVAL = 300          # 5 minutes
-ALERT_COOLDOWN = 1800        # 30 minutes
+SCAN_INTERVAL = 300       # 5 minutes
+ALERT_COOLDOWN = 1800     # 30 minutes
 
 ALERT_SIGNALS = {
     "BUY SETUP",
@@ -36,9 +36,7 @@ ALERT_SIGNALS = {
 # =========================================================
 
 last_signal = {}
-
 last_sent_signal = {}
-
 last_alert_time = {}
 
 state_lock = threading.Lock()
@@ -71,19 +69,11 @@ def process_alert(coin, price, result):
 
     now = time.time()
 
-    # -----------------------------------------------------
-    # Previous state
-    # -----------------------------------------------------
-
     with state_lock:
 
-        previous_signal = last_signal.get(
-            coin
-        )
+        previous_signal = last_signal.get(coin)
 
-        previous_sent = last_sent_signal.get(
-            coin
-        )
+        previous_sent = last_sent_signal.get(coin)
 
         previous_alert_time = last_alert_time.get(
             coin,
@@ -93,7 +83,7 @@ def process_alert(coin, price, result):
         last_signal[coin] = signal
 
     # -----------------------------------------------------
-    # WAIT / non-alert signals
+    # Non-alert signal
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
@@ -104,36 +94,26 @@ def process_alert(coin, price, result):
         }
 
     # -----------------------------------------------------
-    # Detect signal change
-    # -----------------------------------------------------
-
-    signal_changed = (
-        previous_signal is not None
-        and previous_signal != signal
-    )
-
-    # -----------------------------------------------------
     # Duplicate protection
     # -----------------------------------------------------
 
     if previous_sent == signal:
 
-        # Same signal inside cooldown
-        if (
-            now - previous_alert_time
-            < ALERT_COOLDOWN
-        ):
+        elapsed = now - previous_alert_time
+
+        if elapsed < ALERT_COOLDOWN:
 
             return {
                 "sent": False,
-                "reason": "Duplicate signal cooldown"
+                "reason": "Duplicate signal cooldown",
+                "cooldown_remaining": round(
+                    ALERT_COOLDOWN - elapsed,
+                    1
+                )
             }
 
-        # Same signal after cooldown
-        # Allow a fresh alert only if enough time passed.
-
     # -----------------------------------------------------
-    # Build message
+    # Message data
     # -----------------------------------------------------
 
     reasons = result.get(
@@ -195,14 +175,12 @@ Risk / Reward:
 """
 
     # -----------------------------------------------------
-    # Send Telegram
+    # Telegram
     # -----------------------------------------------------
 
     try:
 
-        send_message(
-            message
-        )
+        send_message(message)
 
     except Exception as e:
 
@@ -212,26 +190,26 @@ Risk / Reward:
 
         return {
             "sent": False,
-            "reason": "Telegram error"
+            "reason": "Telegram error",
+            "error": str(e)
         }
 
     # -----------------------------------------------------
-    # Save successful alert state
+    # Save successful alert
     # -----------------------------------------------------
 
     with state_lock:
 
         last_sent_signal[coin] = signal
-
         last_alert_time[coin] = now
 
-    if signal_changed:
-
-        reason = "New signal"
-
-    elif previous_sent == signal:
+    if previous_sent == signal:
 
         reason = "Cooldown expired"
+
+    elif previous_signal != signal:
+
+        reason = "New signal"
 
     else:
 
@@ -244,7 +222,7 @@ Risk / Reward:
 
 
 # =========================================================
-# SCAN
+# NORMAL SCAN
 # =========================================================
 
 @app.get("/scan")
@@ -253,9 +231,7 @@ def scan():
     market = get_market()
 
     alerts = []
-
     alerts_sent = []
-
     alert_status = {}
 
     for coin, price in market.items():
@@ -265,9 +241,7 @@ def scan():
             price
         )
 
-        alerts.append(
-            result
-        )
+        alerts.append(result)
 
         status = process_alert(
             coin,
@@ -279,22 +253,136 @@ def scan():
 
         if status["sent"]:
 
-            alerts_sent.append(
-                coin
-            )
+            alerts_sent.append(coin)
 
     return {
-
         "status": "success",
-
         "version": VERSION,
-
         "data": alerts,
-
         "alerts_sent": alerts_sent,
-
         "alert_status": alert_status
     }
+
+
+# =========================================================
+# TEST ALERT
+# =========================================================
+
+@app.get("/test-alert")
+def test_alert(
+    coin: str = "BTC",
+    signal: str = "BUY SETUP"
+):
+
+    signal = signal.upper()
+
+    allowed_test_signals = {
+        "BUY SETUP",
+        "STRONG BUY",
+        "SELL WATCH",
+        "WAIT"
+    }
+
+    if signal not in allowed_test_signals:
+
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": "Invalid test signal",
+                "allowed": list(
+                    allowed_test_signals
+                )
+            }
+        )
+
+    # -----------------------------------------------------
+    # WAIT test
+    # -----------------------------------------------------
+
+    if signal == "WAIT":
+
+        with state_lock:
+
+            last_signal[coin] = "WAIT"
+
+        return {
+            "status": "success",
+            "test": True,
+            "coin": coin,
+            "signal": "WAIT",
+            "message": "Signal state reset"
+        }
+
+    # -----------------------------------------------------
+    # Fake result for Telegram testing
+    # -----------------------------------------------------
+
+    result = {
+
+        "signal": signal,
+
+        "confidence": 80,
+
+        "quality_score": 80,
+
+        "quality_grade": "B",
+
+        "reason": [
+            "TEST ALERT"
+        ],
+
+        "entry": {
+            "low": 64000,
+            "high": 64500
+        },
+
+        "stop_loss": 63500,
+
+        "take_profit": {
+            "tp1": 65200,
+            "tp2": 66000
+        },
+
+        "risk_reward": 1.50
+    }
+
+    status = process_alert(
+        coin,
+        65000,
+        result
+    )
+
+    return {
+        "status": "success",
+        "test": True,
+        "version": VERSION,
+        "coin": coin,
+        "signal": signal,
+        "alert_status": status
+    }
+
+
+# =========================================================
+# ALERT STATE
+# =========================================================
+
+@app.get("/alert-state")
+def alert_state():
+
+    with state_lock:
+
+        return {
+            "last_signal": dict(
+                last_signal
+            ),
+            "last_sent_signal": dict(
+                last_sent_signal
+            ),
+            "last_alert_time": dict(
+                last_alert_time
+            )
+        }
 
 
 # =========================================================
@@ -304,7 +392,7 @@ def scan():
 def scheduler():
 
     print(
-        f"Crypto Alert V2.5.5 scheduler started: "
+        f"Crypto Alert scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
@@ -326,7 +414,7 @@ def scheduler():
 
 
 # =========================================================
-# START SCHEDULER
+# START
 # =========================================================
 
 @app.on_event("startup")
