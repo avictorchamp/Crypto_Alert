@@ -17,27 +17,30 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.5.3 SMART ALERT
+# V2.5.4
+# ALERT STATE & DUPLICATE PROTECTION
 # =========================================================
 
 SCAN_INTERVAL = 300  # 5 minutes
-
-# Store the last signal sent for each coin
-last_sent_signal = {}
-
-# Lock to protect alert state
-alert_lock = threading.Lock()
-
-
-# =========================================================
-# SIGNALS THAT ARE ALLOWED TO SEND TELEGRAM
-# =========================================================
 
 ALERT_SIGNALS = {
     "BUY SETUP",
     "STRONG BUY",
     "SELL WATCH"
 }
+
+
+# =========================================================
+# STATE
+# =========================================================
+
+# Last signal detected for each coin
+last_signal = {}
+
+# Last signal successfully sent to Telegram
+last_sent_signal = {}
+
+state_lock = threading.Lock()
 
 
 # =========================================================
@@ -55,99 +58,149 @@ def root():
 
 
 # =========================================================
-# SEND ALERT
+# SEND SMART ALERT
 # =========================================================
 
-def send_alert(coin, price, result):
+def process_alert(coin, price, result):
 
-    signal = result["signal"]
+    signal = result.get(
+        "signal",
+        "WAIT"
+    )
 
     # -----------------------------------------------------
-    # WAIT = no Telegram alert
+    # Update detected state
+    # -----------------------------------------------------
+
+    with state_lock:
+
+        previous_signal = last_signal.get(
+            coin
+        )
+
+        last_signal[coin] = signal
+
+    # -----------------------------------------------------
+    # WAIT does not generate Telegram alert
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
 
-        return False
+        return {
+            "sent": False,
+            "reason": "Signal not alertable"
+        }
 
     # -----------------------------------------------------
     # Duplicate protection
     # -----------------------------------------------------
 
-    with alert_lock:
+    with state_lock:
 
-        previous_signal = last_sent_signal.get(
+        previous_sent = last_sent_signal.get(
             coin
         )
 
-        if previous_signal == signal:
+        if previous_sent == signal:
 
-            return False
-
-        last_sent_signal[coin] = signal
+            return {
+                "sent": False,
+                "reason": "Duplicate signal"
+            }
 
     # -----------------------------------------------------
-    # Build message
+    # Build Telegram message
     # -----------------------------------------------------
+
+    reasons = result.get(
+        "reason",
+        []
+    )
+
+    reason_text = ", ".join(
+        reasons
+    ) if reasons else "N/A"
+
+    entry = result.get(
+        "entry",
+        {}
+    )
+
+    take_profit = result.get(
+        "take_profit",
+        {}
+    )
 
     message = f"""
 🚨 Crypto Alert
 
 Coin: {coin}/USDT
 
-Price:
-{price}
-
 Signal:
 {signal}
+
+Price:
+{price}
 
 Confidence:
 {result.get("confidence")}
 
 Quality:
-{result.get("quality_score")} ({result.get("quality_grade")})
+{result.get("quality_score")}
+({result.get("quality_grade")})
 
 Reason:
-{", ".join(result.get("reason", []))}
+{reason_text}
 
 Entry:
-{result["entry"]["low"]} - {result["entry"]["high"]}
+{entry.get("low")} - {entry.get("high")}
 
 Stop Loss:
-{result["stop_loss"]}
+{result.get("stop_loss")}
 
 Take Profit 1:
-{result["take_profit"]["tp1"]}
+{take_profit.get("tp1")}
 
 Take Profit 2:
-{result["take_profit"]["tp2"]}
+{take_profit.get("tp2")}
 
 Risk / Reward:
 {result.get("risk_reward")}
 """
 
+    # -----------------------------------------------------
+    # Send Telegram
+    # -----------------------------------------------------
+
     try:
 
-        send_message(message)
-
-        return True
+        send_message(
+            message
+        )
 
     except Exception as e:
-
-        # If Telegram fails, don't permanently mark
-        # the signal as successfully sent.
-
-        with alert_lock:
-
-            if last_sent_signal.get(coin) == signal:
-
-                del last_sent_signal[coin]
 
         print(
             f"Telegram error for {coin}: {e}"
         )
 
-        return False
+        return {
+            "sent": False,
+            "reason": "Telegram error"
+        }
+
+    # -----------------------------------------------------
+    # Mark as successfully sent
+    # -----------------------------------------------------
+
+    with state_lock:
+
+        last_sent_signal[coin] = signal
+
+    return {
+        "sent": True,
+        "reason": "New alert"
+    }
 
 
 # =========================================================
@@ -161,7 +214,9 @@ def scan():
 
     alerts = []
 
-    sent_alerts = []
+    alerts_sent = []
+
+    alert_status = {}
 
     for coin, price in market.items():
 
@@ -175,18 +230,20 @@ def scan():
         )
 
         # -------------------------------------------------
-        # Smart Telegram Alert
+        # Process Telegram alert
         # -------------------------------------------------
 
-        sent = send_alert(
+        status = process_alert(
             coin,
             price,
             result
         )
 
-        if sent:
+        alert_status[coin] = status
 
-            sent_alerts.append(
+        if status["sent"]:
+
+            alerts_sent.append(
                 coin
             )
 
@@ -198,7 +255,9 @@ def scan():
 
         "data": alerts,
 
-        "alerts_sent": sent_alerts
+        "alerts_sent": alerts_sent,
+
+        "alert_status": alert_status
     }
 
 
@@ -209,7 +268,7 @@ def scan():
 def scheduler():
 
     print(
-        f"Crypto Alert V2.5.3 scheduler started: "
+        f"Crypto Alert V2.5.4 scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
