@@ -38,7 +38,8 @@ def generate_signal(rsi, ema20, ema50, price, support, resistance):
     risk = max(entry_mid - stop_loss, 0.0)
 
     tp1 = round(float(resistance), 8)
-    tp2 = round(entry_mid + risk * 2.0, 8)
+    # For long setups, TP2 must never be below TP1.
+    tp2 = round(max(entry_mid + risk * 2.0, tp1), 8)
 
     reward_tp1 = max(tp1 - entry_mid, 0.0)
     risk_reward = round(reward_tp1 / risk, 2) if risk > 0 else None
