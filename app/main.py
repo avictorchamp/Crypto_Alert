@@ -35,8 +35,13 @@ ALERT_SIGNALS = {
 # STATE
 # =========================================================
 
+# Last signal detected for each coin
 last_signal = {}
+
+# Last signal successfully sent to Telegram
 last_sent_signal = {}
+
+# Timestamp of last successful Telegram alert
 last_alert_time = {}
 
 state_lock = threading.Lock()
@@ -69,43 +74,64 @@ def process_alert(coin, price, result):
 
     now = time.time()
 
+    # -----------------------------------------------------
+    # Read previous state
+    # -----------------------------------------------------
+
     with state_lock:
 
-        previous_signal = last_signal.get(coin)
+        previous_signal = last_signal.get(
+            coin
+        )
 
-        previous_sent = last_sent_signal.get(coin)
+        previous_sent = last_sent_signal.get(
+            coin
+        )
 
         previous_alert_time = last_alert_time.get(
             coin,
             0
         )
 
+        # Always remember current signal
         last_signal[coin] = signal
 
     # -----------------------------------------------------
     # Non-alert signal
+    #
+    # IMPORTANT:
+    # When a coin leaves an alertable state and becomes
+    # WAIT, clear the previous Telegram alert state.
+    #
+    # This allows:
+    #
+    # BUY SETUP
+    #     ↓
+    # WAIT
+    #     ↓
+    # BUY SETUP
+    #
+    # to generate a new alert.
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
 
-    with state_lock:
+        with state_lock:
 
-        # Reset alert state when signal leaves
-        # the alertable state.
-        last_sent_signal.pop(
-            coin,
-            None
-        )
+            last_sent_signal.pop(
+                coin,
+                None
+            )
 
-        last_alert_time.pop(
-            coin,
-            None
-        )
+            last_alert_time.pop(
+                coin,
+                None
+            )
 
-    return {
-        "sent": False,
-        "reason": "Signal not alertable"
-    }
+        return {
+            "sent": False,
+            "reason": "Signal not alertable"
+        }
 
     # -----------------------------------------------------
     # Duplicate protection
@@ -113,7 +139,9 @@ def process_alert(coin, price, result):
 
     if previous_sent == signal:
 
-        elapsed = now - previous_alert_time
+        elapsed = (
+            now - previous_alert_time
+        )
 
         if elapsed < ALERT_COOLDOWN:
 
@@ -189,12 +217,14 @@ Risk / Reward:
 """
 
     # -----------------------------------------------------
-    # Telegram
+    # Send Telegram
     # -----------------------------------------------------
 
     try:
 
-        send_message(message)
+        send_message(
+            message
+        )
 
     except Exception as e:
 
@@ -209,13 +239,18 @@ Risk / Reward:
         }
 
     # -----------------------------------------------------
-    # Save successful alert
+    # Save successful alert state
     # -----------------------------------------------------
 
     with state_lock:
 
         last_sent_signal[coin] = signal
+
         last_alert_time[coin] = now
+
+    # -----------------------------------------------------
+    # Alert reason
+    # -----------------------------------------------------
 
     if previous_sent == signal:
 
@@ -245,7 +280,9 @@ def scan():
     market = get_market()
 
     alerts = []
+
     alerts_sent = []
+
     alert_status = {}
 
     for coin, price in market.items():
@@ -255,7 +292,9 @@ def scan():
             price
         )
 
-        alerts.append(result)
+        alerts.append(
+            result
+        )
 
         status = process_alert(
             coin,
@@ -267,7 +306,9 @@ def scan():
 
         if status["sent"]:
 
-            alerts_sent.append(coin)
+            alerts_sent.append(
+                coin
+            )
 
     return {
         "status": "success",
@@ -297,6 +338,10 @@ def test_alert(
         "WAIT"
     }
 
+    # -----------------------------------------------------
+    # Validate signal
+    # -----------------------------------------------------
+
     if signal not in allowed_test_signals:
 
         return JSONResponse(
@@ -311,7 +356,7 @@ def test_alert(
         )
 
     # -----------------------------------------------------
-    # WAIT test
+    # WAIT TEST / RESET
     # -----------------------------------------------------
 
     if signal == "WAIT":
@@ -319,6 +364,16 @@ def test_alert(
         with state_lock:
 
             last_signal[coin] = "WAIT"
+
+            last_sent_signal.pop(
+                coin,
+                None
+            )
+
+            last_alert_time.pop(
+                coin,
+                None
+            )
 
         return {
             "status": "success",
