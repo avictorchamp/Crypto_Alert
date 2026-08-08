@@ -1,92 +1,45 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
-from app.telegram.bot import send_message
+from app.scheduler import start_scheduler, scheduler_status
 
-from app.config import VERSION
-from app.logger import logger
+VERSION = "2.3.0"
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    print("Crypto Alert V2.3 scheduler started: every 5 minutes")
+    yield
 
 app = FastAPI(
     title="Crypto Alert",
-    version="2.2.0"
+    version=VERSION,
+    lifespan=lifespan
 )
-
 
 @app.get("/")
 def root():
-
     return {
         "service": "Crypto Alert",
-        "version": "2.2.0",
+        "version": VERSION,
         "status": "running"
     }
 
-
-@app.get("/health")
-def health():
-
-    return {
-        "status": "healthy",
-        "version": VERSION
-    }
-
-
 @app.get("/scan")
 def scan():
-
-    market=get_market()
-
-    alerts=[]
-
-
-    for coin,data in market.items():
-
-        result=analyze(
-            coin,
-            data
-        )
-
-
-        alerts.append(result)
-
-
-        if result["signal"]!="WAIT":
-
-            msg=f"""
-🚨 Crypto Alert V2.2
-
-Coin:
-{coin}/USDT
-
-Price:
-{result['price']}
-
-Signal:
-{result['signal']}
-
-Confidence:
-{result['confidence']}%
-
-RSI:
-{result['rsi']}
-
-Reason:
-{', '.join(result['reason'])}
-
-Support:
-{result['support']}
-
-Resistance:
-{result['resistance']}
-"""
-
-            send_message(msg)
-
-
+    market = get_market()
+    alerts = []
+    for coin, data in market.items():
+        alerts.append(analyze(coin, data))
     return {
-        "status":"success",
-        "version":"2.2.0",
-        "data":alerts
+        "status": "success",
+        "version": VERSION,
+        "data": alerts
     }
+
+@app.get("/scheduler")
+def scheduler():
+    return scheduler_status()
