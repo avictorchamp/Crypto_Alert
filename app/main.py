@@ -17,11 +17,12 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.5.4
-# ALERT STATE & DUPLICATE PROTECTION
+# V2.5.5
+# ALERT COOLDOWN + SIGNAL RECOVERY
 # =========================================================
 
-SCAN_INTERVAL = 300  # 5 minutes
+SCAN_INTERVAL = 300          # 5 minutes
+ALERT_COOLDOWN = 1800        # 30 minutes
 
 ALERT_SIGNALS = {
     "BUY SETUP",
@@ -34,11 +35,11 @@ ALERT_SIGNALS = {
 # STATE
 # =========================================================
 
-# Last signal detected for each coin
 last_signal = {}
 
-# Last signal successfully sent to Telegram
 last_sent_signal = {}
+
+last_alert_time = {}
 
 state_lock = threading.Lock()
 
@@ -58,7 +59,7 @@ def root():
 
 
 # =========================================================
-# SEND SMART ALERT
+# ALERT PROCESSOR
 # =========================================================
 
 def process_alert(coin, price, result):
@@ -68,8 +69,10 @@ def process_alert(coin, price, result):
         "WAIT"
     )
 
+    now = time.time()
+
     # -----------------------------------------------------
-    # Update detected state
+    # Previous state
     # -----------------------------------------------------
 
     with state_lock:
@@ -78,10 +81,19 @@ def process_alert(coin, price, result):
             coin
         )
 
+        previous_sent = last_sent_signal.get(
+            coin
+        )
+
+        previous_alert_time = last_alert_time.get(
+            coin,
+            0
+        )
+
         last_signal[coin] = signal
 
     # -----------------------------------------------------
-    # WAIT does not generate Telegram alert
+    # WAIT / non-alert signals
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
@@ -92,24 +104,36 @@ def process_alert(coin, price, result):
         }
 
     # -----------------------------------------------------
+    # Detect signal change
+    # -----------------------------------------------------
+
+    signal_changed = (
+        previous_signal is not None
+        and previous_signal != signal
+    )
+
+    # -----------------------------------------------------
     # Duplicate protection
     # -----------------------------------------------------
 
-    with state_lock:
+    if previous_sent == signal:
 
-        previous_sent = last_sent_signal.get(
-            coin
-        )
-
-        if previous_sent == signal:
+        # Same signal inside cooldown
+        if (
+            now - previous_alert_time
+            < ALERT_COOLDOWN
+        ):
 
             return {
                 "sent": False,
-                "reason": "Duplicate signal"
+                "reason": "Duplicate signal cooldown"
             }
 
+        # Same signal after cooldown
+        # Allow a fresh alert only if enough time passed.
+
     # -----------------------------------------------------
-    # Build Telegram message
+    # Build message
     # -----------------------------------------------------
 
     reasons = result.get(
@@ -117,9 +141,11 @@ def process_alert(coin, price, result):
         []
     )
 
-    reason_text = ", ".join(
-        reasons
-    ) if reasons else "N/A"
+    reason_text = (
+        ", ".join(reasons)
+        if reasons
+        else "N/A"
+    )
 
     entry = result.get(
         "entry",
@@ -190,16 +216,30 @@ Risk / Reward:
         }
 
     # -----------------------------------------------------
-    # Mark as successfully sent
+    # Save successful alert state
     # -----------------------------------------------------
 
     with state_lock:
 
         last_sent_signal[coin] = signal
 
+        last_alert_time[coin] = now
+
+    if signal_changed:
+
+        reason = "New signal"
+
+    elif previous_sent == signal:
+
+        reason = "Cooldown expired"
+
+    else:
+
+        reason = "First alert"
+
     return {
         "sent": True,
-        "reason": "New alert"
+        "reason": reason
     }
 
 
@@ -228,10 +268,6 @@ def scan():
         alerts.append(
             result
         )
-
-        # -------------------------------------------------
-        # Process Telegram alert
-        # -------------------------------------------------
 
         status = process_alert(
             coin,
@@ -268,7 +304,7 @@ def scan():
 def scheduler():
 
     print(
-        f"Crypto Alert V2.5.4 scheduler started: "
+        f"Crypto Alert V2.5.5 scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
