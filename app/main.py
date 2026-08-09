@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
@@ -17,8 +16,8 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.5.5
-# SMART ALERT + DUPLICATE PROTECTION + TEST MODE
+# V2.5.6
+# PRODUCTION CLEANUP
 # =========================================================
 
 SCAN_INTERVAL = 300       # 5 minutes
@@ -32,16 +31,13 @@ ALERT_SIGNALS = {
 
 
 # =========================================================
-# STATE
+# ALERT STATE
 # =========================================================
 
-# Last signal detected for each coin
 last_signal = {}
 
-# Last signal successfully sent to Telegram
 last_sent_signal = {}
 
-# Timestamp of last successful Telegram alert
 last_alert_time = {}
 
 state_lock = threading.Lock()
@@ -93,25 +89,13 @@ def process_alert(coin, price, result):
             0
         )
 
-        # Always remember current signal
         last_signal[coin] = signal
 
     # -----------------------------------------------------
     # Non-alert signal
     #
-    # IMPORTANT:
-    # When a coin leaves an alertable state and becomes
-    # WAIT, clear the previous Telegram alert state.
-    #
-    # This allows:
-    #
-    # BUY SETUP
-    #     ↓
-    # WAIT
-    #     ↓
-    # BUY SETUP
-    #
-    # to generate a new alert.
+    # Reset Telegram state when signal becomes WAIT
+    # or another non-alertable signal.
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
@@ -316,119 +300,6 @@ def scan():
         "data": alerts,
         "alerts_sent": alerts_sent,
         "alert_status": alert_status
-    }
-
-
-# =========================================================
-# TEST ALERT
-# =========================================================
-
-@app.get("/test-alert")
-def test_alert(
-    coin: str = "BTC",
-    signal: str = "BUY SETUP"
-):
-
-    signal = signal.upper()
-
-    allowed_test_signals = {
-        "BUY SETUP",
-        "STRONG BUY",
-        "SELL WATCH",
-        "WAIT"
-    }
-
-    # -----------------------------------------------------
-    # Validate signal
-    # -----------------------------------------------------
-
-    if signal not in allowed_test_signals:
-
-        return JSONResponse(
-            status_code=400,
-            content={
-                "status": "error",
-                "message": "Invalid test signal",
-                "allowed": list(
-                    allowed_test_signals
-                )
-            }
-        )
-
-    # -----------------------------------------------------
-    # WAIT TEST / RESET
-    # -----------------------------------------------------
-
-    if signal == "WAIT":
-
-        with state_lock:
-
-            last_signal[coin] = "WAIT"
-
-            last_sent_signal.pop(
-                coin,
-                None
-            )
-
-            last_alert_time.pop(
-                coin,
-                None
-            )
-
-        return {
-            "status": "success",
-            "test": True,
-            "coin": coin,
-            "signal": "WAIT",
-            "message": "Signal state reset"
-        }
-
-    # -----------------------------------------------------
-    # Fake result for Telegram testing
-    # -----------------------------------------------------
-
-    result = {
-
-        "signal": signal,
-
-        "confidence": 80,
-
-        "quality_score": 80,
-
-        "quality_grade": "B",
-
-        "reason": [
-            "TEST ALERT"
-        ],
-
-        "entry": {
-            "low": 64000,
-            "high": 64500
-        },
-
-        "stop_loss": 63500,
-
-        "take_profit": {
-            "tp1": 65200,
-            "tp2": 66000
-        },
-
-        "risk_reward": 1.50
-    }
-
-    status = process_alert(
-        coin,
-        65000,
-        result
-    )
-
-    return {
-        "status": "success",
-        "test": True,
-        "version": VERSION,
-        "coin": coin,
-        "signal": signal,
-        "alert_status": status
     }
 
 
