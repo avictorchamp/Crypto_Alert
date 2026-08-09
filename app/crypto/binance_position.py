@@ -9,7 +9,27 @@ from app.crypto.binance_account import (
 
 # =========================================================
 # BINANCE TH POSITION MONITOR
+# VERSION 3.4.0
+#
 # READ ONLY
+#
+# Purpose:
+#   1. Detect assets currently held
+#   2. Calculate approximate average entry
+#   3. Calculate current P/L
+#   4. Provide position information to main.py
+#
+# NO BUY
+# NO SELL
+# NO ORDER
+# =========================================================
+
+
+VERSION = "3.4.0"
+
+
+# =========================================================
+# CONFIG
 # =========================================================
 
 QUOTE_PRIORITY = [
@@ -17,6 +37,39 @@ QUOTE_PRIORITY = [
     "USDT",
     "USDC",
 ]
+
+IGNORED_ASSETS = {
+    "THB",
+    "USDT",
+    "USDC",
+}
+
+
+# =========================================================
+# HELPERS
+# =========================================================
+
+def safe_float(value, default=0.0):
+
+    try:
+        return float(value)
+
+    except (
+        TypeError,
+        ValueError
+    ):
+        return default
+
+
+def round_number(value, digits=8):
+
+    if value is None:
+        return None
+
+    return round(
+        float(value),
+        digits
+    )
 
 
 # =========================================================
@@ -29,6 +82,10 @@ def get_exchange_info():
         "/api/v1/exchangeInfo"
     )
 
+
+# =========================================================
+# FIND TRADING PAIR
+# =========================================================
 
 def get_symbols_for_asset(asset):
 
@@ -43,10 +100,16 @@ def get_symbols_for_asset(asset):
 
     for item in symbols:
 
-        if item.get("status") != "TRADING":
+        if item.get(
+            "status"
+        ) != "TRADING":
+
             continue
 
-        if item.get("baseAsset") != asset:
+        if item.get(
+            "baseAsset"
+        ) != asset:
+
             continue
 
         quote = item.get(
@@ -54,26 +117,27 @@ def get_symbols_for_asset(asset):
         )
 
         if quote not in QUOTE_PRIORITY:
+
             continue
 
         matches.append(
             {
-                "symbol": item.get("symbol"),
-                "base_asset": asset,
-                "quote_asset": quote
+                "symbol":
+                    item.get("symbol"),
+
+                "base_asset":
+                    asset,
+
+                "quote_asset":
+                    quote
             }
         )
 
-    # Preferred quote first.
     matches.sort(
-        key=lambda x: (
+        key=lambda item:
             QUOTE_PRIORITY.index(
-                x["quote_asset"]
+                item["quote_asset"]
             )
-            if x["quote_asset"]
-            in QUOTE_PRIORITY
-            else 999
-        )
     )
 
     return matches
@@ -98,7 +162,7 @@ def get_my_trades(
 
 
 # =========================================================
-# CALCULATE COST BASIS
+# CALCULATE POSITION
 # =========================================================
 
 def calculate_position(
@@ -108,24 +172,14 @@ def calculate_position(
     quote_asset
 ):
 
-    try:
-
-        current_qty = float(
-            balance
-        )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        current_qty = 0.0
+    current_qty = safe_float(
+        balance
+    )
 
     if current_qty <= 0:
 
         return None
 
-    # Average-cost accounting.
     remaining_qty = 0.0
     remaining_cost = 0.0
 
@@ -139,42 +193,37 @@ def calculate_position(
 
     sorted_trades = sorted(
         trades,
-        key=lambda x: (
+        key=lambda item:
             int(
-                x.get(
+                item.get(
                     "time",
                     0
                 )
             )
-        )
     )
 
     for trade in sorted_trades:
 
-        try:
-
-            qty = float(
-                trade.get(
-                    "qty",
-                    0
-                )
+        qty = safe_float(
+            trade.get(
+                "qty",
+                0
             )
+        )
 
-            price = float(
-                trade.get(
-                    "price",
-                    0
-                )
+        price = safe_float(
+            trade.get(
+                "price",
+                0
             )
+        )
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        if qty <= 0:
 
             continue
 
-        if qty <= 0 or price <= 0:
+        if price <= 0:
+
             continue
 
         is_buyer = bool(
@@ -188,9 +237,9 @@ def calculate_position(
             qty * price
         )
 
-        # -------------------------------------------------
+        # =================================================
         # BUY
-        # -------------------------------------------------
+        # =================================================
 
         if is_buyer:
 
@@ -206,76 +255,104 @@ def calculate_position(
                 quote_value
             )
 
-        # -------------------------------------------------
+            continue
+
+        # =================================================
         # SELL
-        # -------------------------------------------------
+        # =================================================
 
-        else:
+        sell_qty = min(
+            qty,
+            remaining_qty
+        )
 
-            sell_qty = min(
-                qty,
-                remaining_qty
-            )
+        if sell_qty > 0:
 
-            if sell_qty > 0:
+            if remaining_qty > 0:
 
                 average_cost = (
                     remaining_cost
                     / remaining_qty
                 )
 
-                cost_removed = (
-                    sell_qty
-                    * average_cost
-                )
+            else:
 
-                sell_value = (
-                    sell_qty
-                    * price
-                )
+                average_cost = 0.0
 
-                realized_pnl += (
-                    sell_value
-                    - cost_removed
-                )
-
-                remaining_cost -= (
-                    cost_removed
-                )
-
-                remaining_qty -= (
-                    sell_qty
-                )
-
-            total_sold += qty
-
-            total_sell_value += (
-                quote_value
+            cost_removed = (
+                sell_qty
+                * average_cost
             )
 
-    # -----------------------------------------------------
-    # Reconcile against actual Binance balance.
-    #
-    # Deposits / transfers can cause the trade-history
-    # quantity to differ from actual balance.
-    # -----------------------------------------------------
+            sell_value = (
+                sell_qty
+                * price
+            )
 
-    history_qty = remaining_qty
+            realized_pnl += (
+                sell_value
+                - cost_removed
+            )
+
+            remaining_cost -= (
+                cost_removed
+            )
+
+            remaining_qty -= (
+                sell_qty
+            )
+
+        total_sold += qty
+
+        total_sell_value += (
+            quote_value
+        )
+
+    history_qty = (
+        remaining_qty
+    )
+
+    # =====================================================
+    # No remaining trade-history quantity
+    #
+    # Possible reasons:
+    #   - deposit
+    #   - transfer
+    #   - old trades unavailable
+    # =====================================================
 
     if history_qty <= 0:
 
         return {
             "asset": asset,
-            "quote_asset": quote_asset,
-            "quantity": current_qty,
-            "cost_basis": None,
-            "average_entry": None,
-            "realized_pnl": round(
-                realized_pnl,
-                8
-            ),
+
+            "quote_asset":
+                quote_asset,
+
+            "quantity":
+                round_number(
+                    current_qty,
+                    12
+                ),
+
+            "history_quantity":
+                0,
+
+            "cost_basis":
+                None,
+
+            "average_entry":
+                None,
+
+            "realized_pnl":
+                round_number(
+                    realized_pnl,
+                    8
+                ),
+
             "cost_basis_status":
                 "UNKNOWN",
+
             "reason":
                 "No remaining buy quantity in trade history"
         }
@@ -285,19 +362,23 @@ def calculate_position(
         / history_qty
     )
 
-    # If Binance balance differs materially from
-    # calculated trade quantity, mark it.
+    # =====================================================
+    # Reconcile trade history with actual balance
+    # =====================================================
+
     balance_difference = (
         current_qty
         - history_qty
     )
 
-    if abs(
-        balance_difference
-    ) > max(
+    tolerance = max(
         0.00000001,
         current_qty * 0.001
-    ):
+    )
+
+    if abs(
+        balance_difference
+    ) > tolerance:
 
         cost_basis_status = (
             "PARTIAL"
@@ -311,51 +392,77 @@ def calculate_position(
 
     return {
         "asset": asset,
-        "quote_asset": quote_asset,
-        "quantity": current_qty,
-        "history_quantity": round(
-            history_qty,
-            12
-        ),
-        "balance_difference": round(
-            balance_difference,
-            12
-        ),
-        "cost_basis": round(
-            remaining_cost,
-            8
-        ),
-        "average_entry": round(
-            average_entry,
-            12
-        ),
-        "realized_pnl": round(
-            realized_pnl,
-            8
-        ),
-        "total_bought": round(
-            total_bought,
-            12
-        ),
-        "total_sold": round(
-            total_sold,
-            12
-        ),
-        "total_buy_cost": round(
-            total_buy_cost,
-            8
-        ),
-        "total_sell_value": round(
-            total_sell_value,
-            8
-        ),
+
+        "quote_asset":
+            quote_asset,
+
+        "quantity":
+            round_number(
+                current_qty,
+                12
+            ),
+
+        "history_quantity":
+            round_number(
+                history_qty,
+                12
+            ),
+
+        "balance_difference":
+            round_number(
+                balance_difference,
+                12
+            ),
+
+        "cost_basis":
+            round_number(
+                remaining_cost,
+                8
+            ),
+
+        "average_entry":
+            round_number(
+                average_entry,
+                12
+            ),
+
+        "realized_pnl":
+            round_number(
+                realized_pnl,
+                8
+            ),
+
+        "total_bought":
+            round_number(
+                total_bought,
+                12
+            ),
+
+        "total_sold":
+            round_number(
+                total_sold,
+                12
+            ),
+
+        "total_buy_cost":
+            round_number(
+                total_buy_cost,
+                8
+            ),
+
+        "total_sell_value":
+            round_number(
+                total_sell_value,
+                8
+            ),
+
         "cost_basis_status":
             cost_basis_status
     }
 
 
 # =========================================================
-# POSITION SNAPSHOT
+# GET CURRENT POSITIONS
 # =========================================================
 
 def get_positions():
@@ -371,6 +478,12 @@ def get_positions():
 
     positions = []
 
+    errors = []
+
+    # =====================================================
+    # Scan actual account balances
+    # =====================================================
+
     for balance in balances:
 
         asset = balance.get(
@@ -378,70 +491,93 @@ def get_positions():
         )
 
         if not asset:
-            continue
-
-        try:
-
-            free = float(
-                balance.get(
-                    "free",
-                    0
-                )
-            )
-
-            locked = float(
-                balance.get(
-                    "locked",
-                    0
-                )
-            )
-
-        except (
-            TypeError,
-            ValueError
-        ):
 
             continue
+
+        if asset in IGNORED_ASSETS:
+
+            continue
+
+        free = safe_float(
+            balance.get(
+                "free",
+                0
+            )
+        )
+
+        locked = safe_float(
+            balance.get(
+                "locked",
+                0
+            )
+        )
 
         quantity = (
             free + locked
         )
 
-        # Ignore fiat / stable balances
-        # that are not positions.
-        if asset in {
-            "THB",
-            "USDT",
-            "USDC"
-        }:
-
-            continue
-
         if quantity <= 0:
+
             continue
 
-        symbol_candidates = (
-            get_symbols_for_asset(
-                asset
-            )
-        )
+        # =================================================
+        # Find trading pair
+        # =================================================
 
-        if not symbol_candidates:
+        try:
+
+            candidates = (
+                get_symbols_for_asset(
+                    asset
+                )
+            )
+
+        except Exception as e:
+
+            errors.append(
+                {
+                    "asset": asset,
+                    "stage":
+                        "exchange_info",
+                    "error": str(e)
+                }
+            )
 
             positions.append(
                 {
                     "asset": asset,
                     "quantity": quantity,
                     "status":
-                        "NO_TRADING_PAIR"
+                        "PAIR_LOOKUP_ERROR",
+                    "error": str(e)
                 }
             )
 
             continue
 
-        selected = (
-            symbol_candidates[0]
-        )
+        if not candidates:
+
+            positions.append(
+                {
+                    "asset": asset,
+
+                    "quantity":
+                        round_number(
+                            quantity,
+                            12
+                        ),
+
+                    "status":
+                        "NO_TRADING_PAIR",
+
+                    "cost_basis_status":
+                        "UNKNOWN"
+                }
+            )
+
+            continue
+
+        selected = candidates[0]
 
         symbol = selected[
             "symbol"
@@ -451,6 +587,10 @@ def get_positions():
             "quote_asset"
         ]
 
+        # =================================================
+        # Trade history
+        # =================================================
+
         try:
 
             trades = get_my_trades(
@@ -459,93 +599,247 @@ def get_positions():
 
         except Exception as e:
 
+            errors.append(
+                {
+                    "asset": asset,
+                    "symbol": symbol,
+                    "stage":
+                        "trade_history",
+                    "error": str(e)
+                }
+            )
+
             positions.append(
                 {
                     "asset": asset,
-                    "quantity": quantity,
-                    "symbol": symbol,
+
+                    "quantity":
+                        round_number(
+                            quantity,
+                            12
+                        ),
+
+                    "symbol":
+                        symbol,
+
                     "quote_asset":
                         quote_asset,
+
                     "status":
                         "TRADE_HISTORY_ERROR",
-                    "error": str(e)
+
+                    "cost_basis_status":
+                        "UNKNOWN",
+
+                    "error":
+                        str(e)
                 }
             )
 
             continue
 
+        # =================================================
+        # Calculate cost basis
+        # =================================================
+
         position = calculate_position(
             asset=asset,
+
             balance=quantity,
+
             trades=trades,
+
             quote_asset=quote_asset
         )
 
         if position is None:
+
             continue
 
-        # -------------------------------------------------
-        # Current market price
-        # -------------------------------------------------
+        position[
+            "symbol"
+        ] = symbol
+
+        # =================================================
+        # Current price
+        # =================================================
 
         current_price = prices.get(
             symbol
         )
 
-        if current_price is not None:
+        if current_price is None:
 
             position[
-                "symbol"
-            ] = symbol
+                "status"
+            ] = "PRICE_UNAVAILABLE"
 
-            position[
-                "current_price"
-            ] = current_price
+            positions.append(
+                position
+            )
 
-            if position.get(
+            continue
+
+        position[
+            "current_price"
+        ] = round_number(
+            current_price,
+            12
+        )
+
+        # =================================================
+        # P/L
+        # =================================================
+
+        average_entry = (
+            position.get(
                 "average_entry"
-            ):
+            )
+        )
 
-                entry = float(
-                    position[
-                        "average_entry"
-                    ]
+        if (
+            average_entry is not None
+            and average_entry > 0
+        ):
+
+            pnl_percent = (
+                (
+                    current_price
+                    - average_entry
                 )
+                / average_entry
+            ) * 100
 
-                if entry > 0:
+            unrealized_pnl = (
+                (
+                    current_price
+                    - average_entry
+                )
+                * quantity
+            )
 
-                    pnl_percent = (
-                        (
-                            current_price
-                            - entry
-                        )
-                        / entry
-                    ) * 100
+            position[
+                "unrealized_pnl_percent"
+            ] = round(
+                pnl_percent,
+                4
+            )
 
-                    position[
-                        "unrealized_pnl_percent"
-                    ] = round(
-                        pnl_percent,
-                        4
-                    )
+            position[
+                "unrealized_pnl"
+            ] = round(
+                unrealized_pnl,
+                8
+            )
 
-                    position[
-                        "market_value"
-                    ] = round(
-                        quantity
-                        * current_price,
-                        8
-                    )
+            position[
+                "market_value"
+            ] = round(
+                quantity
+                * current_price,
+                8
+            )
+
+        else:
+
+            position[
+                "unrealized_pnl_percent"
+            ] = None
+
+            position[
+                "unrealized_pnl"
+            ] = None
+
+            position[
+                "market_value"
+            ] = round(
+                quantity
+                * current_price,
+                8
+            )
+
+        # =================================================
+        # Position state
+        # =================================================
+
+        pnl = position.get(
+            "unrealized_pnl_percent"
+        )
+
+        if pnl is None:
+
+            position[
+                "position_state"
+            ] = "MONITOR"
+
+        elif pnl >= 10:
+
+            position[
+                "position_state"
+            ] = "PROFIT_10_PLUS"
+
+        elif pnl >= 5:
+
+            position[
+                "position_state"
+            ] = "PROFIT_5_PLUS"
+
+        elif pnl >= 0:
+
+            position[
+                "position_state"
+            ] = "PROFIT"
+
+        elif pnl >= -5:
+
+            position[
+                "position_state"
+            ] = "LOSS"
+
+        else:
+
+            position[
+                "position_state"
+            ] = "STOP_RISK"
+
+        position[
+            "status"
+        ] = "ACTIVE"
 
         positions.append(
             position
         )
 
+    # =====================================================
+    # Sort highest market value first
+    # =====================================================
+
+    positions.sort(
+        key=lambda item:
+            item.get(
+                "market_value",
+                0
+            ) or 0,
+
+        reverse=True
+    )
+
     return {
-        "status": "success",
+        "status":
+            "success",
+
         "account_type":
             "READ_ONLY",
-        "positions": positions,
+
+        "version":
+            VERSION,
+
         "position_count":
-            len(positions)
+            len(positions),
+
+        "positions":
+            positions,
+
+        "errors":
+            errors
     }
