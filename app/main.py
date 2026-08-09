@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
@@ -7,6 +8,7 @@ from app.config import VERSION
 
 import threading
 import time
+from datetime import datetime, timezone
 
 
 app = FastAPI(
@@ -16,12 +18,13 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.5.6
-# PRODUCTION CLEANUP
+# V2.6.0
+# PRODUCTION RELIABILITY
 # =========================================================
 
 SCAN_INTERVAL = 300       # 5 minutes
 ALERT_COOLDOWN = 1800     # 30 minutes
+
 
 ALERT_SIGNALS = {
     "BUY SETUP",
@@ -31,7 +34,7 @@ ALERT_SIGNALS = {
 
 
 # =========================================================
-# ALERT STATE
+# STATE
 # =========================================================
 
 last_signal = {}
@@ -41,6 +44,27 @@ last_sent_signal = {}
 last_alert_time = {}
 
 state_lock = threading.Lock()
+
+# Prevent two scans from running at the same time
+scan_lock = threading.Lock()
+
+# Scheduler / scan status
+scheduler_started_at = None
+last_scan_started = None
+last_scan_completed = None
+last_scan_duration = None
+last_scan_error = None
+
+
+# =========================================================
+# TIME
+# =========================================================
+
+def utc_now():
+
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 # =========================================================
@@ -55,6 +79,30 @@ def root():
         "version": VERSION,
         "status": "running"
     }
+
+
+# =========================================================
+# HEALTH
+# =========================================================
+
+@app.get("/health")
+def health():
+
+    with state_lock:
+
+        return {
+            "status": "healthy",
+            "service": "Crypto Alert",
+            "version": VERSION,
+            "scheduler": {
+                "started_at": scheduler_started_at,
+                "last_scan": last_scan_completed,
+                "last_scan_duration_seconds":
+                    last_scan_duration,
+                "last_error":
+                    last_scan_error
+            }
+        }
 
 
 # =========================================================
@@ -94,8 +142,8 @@ def process_alert(coin, price, result):
     # -----------------------------------------------------
     # Non-alert signal
     #
-    # Reset Telegram state when signal becomes WAIT
-    # or another non-alertable signal.
+    # Reset alert state so a future BUY/SELL signal
+    # can generate a new Telegram alert.
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
@@ -118,7 +166,7 @@ def process_alert(coin, price, result):
         }
 
     # -----------------------------------------------------
-    # Duplicate protection
+    # Duplicate / cooldown protection
     # -----------------------------------------------------
 
     if previous_sent == signal:
@@ -201,7 +249,7 @@ Risk / Reward:
 """
 
     # -----------------------------------------------------
-    # Send Telegram
+    # Telegram
     # -----------------------------------------------------
 
     try:
@@ -223,7 +271,7 @@ Risk / Reward:
         }
 
     # -----------------------------------------------------
-    # Save successful alert state
+    # Save successful alert
     # -----------------------------------------------------
 
     with state_lock:
@@ -233,7 +281,7 @@ Risk / Reward:
         last_alert_time[coin] = now
 
     # -----------------------------------------------------
-    # Alert reason
+    # Reason
     # -----------------------------------------------------
 
     if previous_sent == signal:
@@ -255,52 +303,130 @@ Risk / Reward:
 
 
 # =========================================================
-# NORMAL SCAN
+# SCAN ENGINE
+# =========================================================
+
+def execute_scan():
+
+    global last_scan_started
+    global last_scan_completed
+    global last_scan_duration
+    global last_scan_error
+
+    started = time.time()
+
+    last_scan_started = utc_now()
+
+    try:
+
+        market = get_market()
+
+        alerts = []
+
+        alerts_sent = []
+
+        alert_status = {}
+
+        for coin, price in market.items():
+
+            result = analyze(
+                coin,
+                price
+            )
+
+            alerts.append(
+                result
+            )
+
+            status = process_alert(
+                coin,
+                price,
+                result
+            )
+
+            alert_status[coin] = status
+
+            if status["sent"]:
+
+                alerts_sent.append(
+                    coin
+                )
+
+        completed = time.time()
+
+        last_scan_completed = utc_now()
+
+        last_scan_duration = round(
+            completed - started,
+            3
+        )
+
+        last_scan_error = None
+
+        return {
+            "status": "success",
+            "version": VERSION,
+            "data": alerts,
+            "alerts_sent": alerts_sent,
+            "alert_status": alert_status
+        }
+
+    except Exception as e:
+
+        completed = time.time()
+
+        last_scan_completed = utc_now()
+
+        last_scan_duration = round(
+            completed - started,
+            3
+        )
+
+        last_scan_error = str(e)
+
+        print(
+            f"Scan error: {e}"
+        )
+
+        return {
+            "status": "error",
+            "version": VERSION,
+            "message": str(e)
+        }
+
+
+# =========================================================
+# NORMAL SCAN API
 # =========================================================
 
 @app.get("/scan")
 def scan():
 
-    market = get_market()
+    # -----------------------------------------------------
+    # Prevent overlapping scans
+    # -----------------------------------------------------
 
-    alerts = []
+    if not scan_lock.acquire(
+        blocking=False
+    ):
 
-    alerts_sent = []
-
-    alert_status = {}
-
-    for coin, price in market.items():
-
-        result = analyze(
-            coin,
-            price
+        return JSONResponse(
+            status_code=409,
+            content={
+                "status": "busy",
+                "version": VERSION,
+                "message":
+                    "A scan is already running"
+            }
         )
 
-        alerts.append(
-            result
-        )
+    try:
 
-        status = process_alert(
-            coin,
-            price,
-            result
-        )
+        return execute_scan()
 
-        alert_status[coin] = status
+    finally:
 
-        if status["sent"]:
-
-            alerts_sent.append(
-                coin
-            )
-
-    return {
-        "status": "success",
-        "version": VERSION,
-        "data": alerts,
-        "alerts_sent": alerts_sent,
-        "alert_status": alert_status
-    }
+        scan_lock.release()
 
 
 # =========================================================
@@ -310,19 +436,55 @@ def scan():
 @app.get("/alert-state")
 def alert_state():
 
+    now = time.time()
+
+    states = {}
+
     with state_lock:
 
-        return {
-            "last_signal": dict(
-                last_signal
-            ),
-            "last_sent_signal": dict(
-                last_sent_signal
-            ),
-            "last_alert_time": dict(
-                last_alert_time
+        coins = set(
+            list(last_signal.keys())
+            + list(last_sent_signal.keys())
+        )
+
+        for coin in coins:
+
+            sent_time = last_alert_time.get(
+                coin
             )
-        }
+
+            cooldown_remaining = 0
+
+            if sent_time:
+
+                elapsed = (
+                    now - sent_time
+                )
+
+                cooldown_remaining = max(
+                    0,
+                    round(
+                        ALERT_COOLDOWN - elapsed,
+                        1
+                    )
+                )
+
+            states[coin] = {
+                "signal":
+                    last_signal.get(coin),
+
+                "last_sent_signal":
+                    last_sent_signal.get(coin),
+
+                "cooldown_remaining":
+                    cooldown_remaining
+            }
+
+    return {
+        "status": "success",
+        "version": VERSION,
+        "states": states
+    }
 
 
 # =========================================================
@@ -331,21 +493,49 @@ def alert_state():
 
 def scheduler():
 
+    global scheduler_started_at
+
+    scheduler_started_at = utc_now()
+
     print(
-        f"Crypto Alert scheduler started: "
+        "Crypto Alert V2.6 scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
     while True:
 
-        try:
+        # -------------------------------------------------
+        # Don't overlap with a manually requested /scan
+        # -------------------------------------------------
 
-            scan()
+        if scan_lock.acquire(
+            blocking=False
+        ):
 
-        except Exception as e:
+            try:
+
+                result = execute_scan()
+
+                print(
+                    "Scheduled scan:",
+                    result.get("status")
+                )
+
+            except Exception as e:
+
+                print(
+                    f"Scheduler error: {e}"
+                )
+
+            finally:
+
+                scan_lock.release()
+
+        else:
 
             print(
-                f"Scheduler error: {e}"
+                "Scheduled scan skipped: "
+                "another scan is already running"
             )
 
         time.sleep(
@@ -354,7 +544,7 @@ def scheduler():
 
 
 # =========================================================
-# START
+# STARTUP
 # =========================================================
 
 @app.on_event("startup")
