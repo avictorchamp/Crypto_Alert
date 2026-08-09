@@ -12,13 +12,12 @@ from datetime import datetime, timezone
 
 # =========================================================
 # CRYPTO ALERT V3.0.0
-# FINAL PRODUCTION ALERT ENGINE
 # =========================================================
 
 VERSION = "3.0.0"
 
-SCAN_INTERVAL = 300          # 5 minutes
-ALERT_COOLDOWN = 1800        # 30 minutes
+SCAN_INTERVAL = 300
+ALERT_COOLDOWN = 1800
 
 MIN_QUALITY = 70
 MIN_RISK_REWARD = 1.0
@@ -61,10 +60,94 @@ scan_lock = threading.Lock()
 # =========================================================
 
 def utc_now():
-
     return datetime.now(
         timezone.utc
     ).isoformat()
+
+
+# =========================================================
+# TELEGRAM TEST
+# =========================================================
+
+@app.get("/test-alert")
+def test_alert():
+
+    message = """
+🚨 CRYPTO ALERT TEST
+
+━━━━━━━━━━━━━━━━━━
+BTC/USDT
+━━━━━━━━━━━━━━━━━━
+
+📌 SIGNAL
+BUY SETUP
+
+💰 PRICE
+65000.00
+
+📊 CONFIDENCE
+80
+
+⭐ QUALITY
+80 (B)
+
+📈 MARKET
+BULLISH
+
+📉 RSI
+50.00
+
+🎯 ENTRY
+64255.13 - 64576.41
+
+🛑 STOP LOSS
+63612.58
+
+🎯 TP1
+65292.32
+
+🎯 TP2
+66022.15
+
+⚖️ RISK / REWARD
+1.09
+
+━━━━━━━━━━━━━━━━━━
+⚠️ TEST ALERT ONLY
+
+This is a Telegram connectivity test.
+This is NOT a real trading signal.
+No automatic trading is performed.
+"""
+
+    try:
+
+        send_message(message)
+
+        return {
+            "status": "success",
+            "test": True,
+            "version": VERSION,
+            "telegram": True,
+            "message": "Test alert sent"
+        }
+
+    except Exception as e:
+
+        print(
+            f"Telegram test error: {e}"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "test": True,
+                "version": VERSION,
+                "telegram": False,
+                "message": str(e)
+            }
+        )
 
 
 # =========================================================
@@ -77,7 +160,6 @@ def get_market_regime(result):
     ema50 = result.get("ema50")
 
     if ema20 is None or ema50 is None:
-
         return {
             "status": "UNKNOWN",
             "score": 0,
@@ -85,15 +167,9 @@ def get_market_regime(result):
         }
 
     try:
-
         ema20 = float(ema20)
         ema50 = float(ema50)
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
+    except (TypeError, ValueError):
         return {
             "status": "UNKNOWN",
             "score": 0,
@@ -101,7 +177,6 @@ def get_market_regime(result):
         }
 
     if ema50 == 0:
-
         return {
             "status": "UNKNOWN",
             "score": 0,
@@ -113,28 +188,11 @@ def get_market_regime(result):
         / abs(ema50)
     ) * 100
 
-    # Small EMA difference = neutral
     if abs(difference) < 0.05:
-
         return {
             "status": "NEUTRAL",
             "score": 50,
             "reason": "EMA20 and EMA50 are close"
-        }
-
-    if difference > 0:
-
-        score = min(
-            100,
-            round(
-                50 + abs(difference) * 100
-            )
-        )
-
-        return {
-            "status": "BULLISH",
-            "score": score,
-            "reason": "EMA20 above EMA50"
         }
 
     score = min(
@@ -143,6 +201,13 @@ def get_market_regime(result):
             50 + abs(difference) * 100
         )
     )
+
+    if difference > 0:
+        return {
+            "status": "BULLISH",
+            "score": score,
+            "reason": "EMA20 above EMA50"
+        }
 
     return {
         "status": "BEARISH",
@@ -182,38 +247,24 @@ def get_trade_status(result):
         "risk_reward"
     )
 
-    # -----------------------------------------------------
-    # Quality
-    # -----------------------------------------------------
-
     if quality is not None:
 
         try:
 
             if float(quality) < MIN_QUALITY:
-
                 return {
                     "status": "LOW_QUALITY",
                     "action": "AVOID",
-                    "reason":
-                        "Quality below minimum"
+                    "reason": "Quality below minimum"
                 }
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             return {
                 "status": "LOW_QUALITY",
                 "action": "AVOID",
-                "reason":
-                    "Invalid quality score"
+                "reason": "Invalid quality score"
             }
-
-    # -----------------------------------------------------
-    # RSI protection
-    # -----------------------------------------------------
 
     if rsi is not None:
 
@@ -222,59 +273,37 @@ def get_trade_status(result):
             rsi = float(rsi)
 
             if signal in BUY_SIGNALS and rsi >= 75:
-
                 return {
                     "status": "RSI_OVERBOUGHT",
                     "action": "WAIT",
-                    "reason":
-                        "RSI too high for BUY"
+                    "reason": "RSI too high for BUY"
                 }
 
             if signal in SELL_SIGNALS and rsi <= 25:
-
                 return {
                     "status": "RSI_OVERSOLD",
                     "action": "WAIT",
-                    "reason":
-                        "RSI too low for SELL"
+                    "reason": "RSI too low for SELL"
                 }
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             pass
-
-    # -----------------------------------------------------
-    # Risk / reward
-    # -----------------------------------------------------
 
     if risk_reward is not None:
 
         try:
 
-            rr = float(risk_reward)
-
-            if rr < MIN_RISK_REWARD:
-
+            if float(risk_reward) < MIN_RISK_REWARD:
                 return {
                     "status": "LOW_RISK_REWARD",
                     "action": "AVOID",
-                    "reason":
-                        "Risk/reward below minimum"
+                    "reason": "Risk/reward below minimum"
                 }
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             pass
-
-    # -----------------------------------------------------
-    # Entry zone
-    # -----------------------------------------------------
 
     if (
         price is not None
@@ -289,64 +318,47 @@ def get_trade_status(result):
             entry_high = float(entry_high)
 
             if price < entry_low:
-
                 return {
                     "status": "BELOW_ENTRY",
                     "action": "WAIT_FOR_ENTRY",
-                    "reason":
-                        "Price below entry zone"
+                    "reason": "Price below entry zone"
                 }
 
             if price > entry_high:
-
                 return {
                     "status": "ABOVE_ENTRY",
                     "action": "WAIT_FOR_ENTRY",
-                    "reason":
-                        "Price above entry zone"
+                    "reason": "Price above entry zone"
                 }
 
             return {
                 "status": "IN_ENTRY",
                 "action": "READY",
-                "reason":
-                    "Price inside entry zone"
+                "reason": "Price inside entry zone"
             }
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             pass
 
-    # -----------------------------------------------------
-    # No entry data
-    # -----------------------------------------------------
-
     if signal in BUY_SIGNALS:
-
         return {
             "status": "SETUP",
             "action": "WAIT",
-            "reason":
-                "Waiting for valid entry"
+            "reason": "Waiting for valid entry"
         }
 
     if signal in SELL_SIGNALS:
-
         return {
             "status": "SETUP",
             "action": "WAIT",
-            "reason":
-                "Waiting for valid entry"
+            "reason": "Waiting for valid entry"
         }
 
     return {
         "status": "WAIT",
         "action": "WAIT",
-        "reason":
-            "No actionable signal"
+        "reason": "No actionable signal"
     }
 
 
@@ -373,115 +385,69 @@ def evaluate_alert(
         "risk_reward"
     )
 
-    # -----------------------------------------------------
-    # Signal
-    # -----------------------------------------------------
-
     if signal not in (
         BUY_SIGNALS | SELL_SIGNALS
     ):
-
         return {
             "allowed": False,
-            "reason":
-                "Signal not alertable"
+            "reason": "Signal not alertable"
         }
 
-    # -----------------------------------------------------
-    # Quality
-    # -----------------------------------------------------
-
     if quality is None:
-
         return {
             "allowed": False,
-            "reason":
-                "Quality score unavailable"
+            "reason": "Quality score unavailable"
         }
 
     try:
 
         if float(quality) < MIN_QUALITY:
-
             return {
                 "allowed": False,
-                "reason":
-                    "Quality below alert threshold"
+                "reason": "Quality below alert threshold"
             }
 
-    except (
-        TypeError,
-        ValueError
-    ):
+    except (TypeError, ValueError):
 
         return {
             "allowed": False,
-            "reason":
-                "Invalid quality score"
+            "reason": "Invalid quality score"
         }
-
-    # -----------------------------------------------------
-    # Risk reward
-    # -----------------------------------------------------
 
     if rr is not None:
 
         try:
 
             if float(rr) < MIN_RISK_REWARD:
-
                 return {
                     "allowed": False,
-                    "reason":
-                        "Risk/reward below threshold"
+                    "reason": "Risk/reward below threshold"
                 }
 
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             return {
                 "allowed": False,
-                "reason":
-                    "Invalid risk/reward"
+                "reason": "Invalid risk/reward"
             }
-
-    # -----------------------------------------------------
-    # BUY regime
-    # -----------------------------------------------------
 
     if signal in BUY_SIGNALS:
 
         if regime["status"] != "BULLISH":
-
             return {
                 "allowed": False,
-                "reason":
-                    "BUY blocked by market regime",
-                "regime":
-                    regime["status"]
+                "reason": "BUY blocked by market regime",
+                "regime": regime["status"]
             }
-
-    # -----------------------------------------------------
-    # SELL regime
-    # -----------------------------------------------------
 
     if signal in SELL_SIGNALS:
 
         if regime["status"] != "BEARISH":
-
             return {
                 "allowed": False,
-                "reason":
-                    "SELL blocked by market regime",
-                "regime":
-                    regime["status"]
+                "reason": "SELL blocked by market regime",
+                "regime": regime["status"]
             }
-
-    # -----------------------------------------------------
-    # Entry timing
-    # -----------------------------------------------------
 
     if trade["status"] != "IN_ENTRY":
 
@@ -493,19 +459,14 @@ def evaluate_alert(
                 trade["status"]
         }
 
-    # -----------------------------------------------------
-    # All gates passed
-    # -----------------------------------------------------
-
     return {
         "allowed": True,
-        "reason":
-            "All alert conditions passed"
+        "reason": "All alert conditions passed"
     }
 
 
 # =========================================================
-# TELEGRAM ALERT
+# SEND REAL ALERT
 # =========================================================
 
 def send_alert(
@@ -516,25 +477,11 @@ def send_alert(
     trade
 ):
 
-    signal = result.get(
-        "signal"
-    )
-
-    quality = result.get(
-        "quality_score"
-    )
-
-    grade = result.get(
-        "quality_grade"
-    )
-
-    confidence = result.get(
-        "confidence"
-    )
-
-    rsi = result.get(
-        "rsi"
-    )
+    signal = result.get("signal")
+    quality = result.get("quality_score")
+    grade = result.get("quality_grade")
+    confidence = result.get("confidence")
+    rsi = result.get("rsi")
 
     entry = result.get(
         "entry",
@@ -615,10 +562,7 @@ def send_alert(
 Manual execution only.
 """
 
-
-    send_message(
-        message
-    )
+    send_message(message)
 
 
 # =========================================================
@@ -652,10 +596,6 @@ def process_alert(
 
     now = time.time()
 
-    # -----------------------------------------------------
-    # Save latest signal
-    # -----------------------------------------------------
-
     with state_lock:
 
         previous_signal = last_signal.get(
@@ -669,27 +609,15 @@ def process_alert(
             0
         )
 
-    # -----------------------------------------------------
-    # Not allowed
-    # -----------------------------------------------------
-
     if not decision["allowed"]:
 
         return {
             "sent": False,
-            "reason":
-                decision["reason"],
-            "market_regime":
-                regime["status"],
-            "trade_status":
-                trade["status"],
-            "trade_action":
-                trade["action"]
+            "reason": decision["reason"],
+            "market_regime": regime["status"],
+            "trade_status": trade["status"],
+            "trade_action": trade["action"]
         }
-
-    # -----------------------------------------------------
-    # Cooldown
-    # -----------------------------------------------------
 
     if previous_signal == signal:
 
@@ -701,22 +629,15 @@ def process_alert(
 
             return {
                 "sent": False,
-                "reason":
-                    "Duplicate signal cooldown",
+                "reason": "Duplicate signal cooldown",
                 "cooldown_remaining":
                     round(
                         ALERT_COOLDOWN - elapsed,
                         1
                     ),
-                "market_regime":
-                    regime["status"],
-                "trade_status":
-                    trade["status"]
+                "market_regime": regime["status"],
+                "trade_status": trade["status"]
             }
-
-    # -----------------------------------------------------
-    # Telegram
-    # -----------------------------------------------------
 
     try:
 
@@ -736,47 +657,25 @@ def process_alert(
 
         return {
             "sent": False,
-            "reason":
-                "Telegram error",
-            "error":
-                str(e)
+            "reason": "Telegram error",
+            "error": str(e)
         }
-
-    # -----------------------------------------------------
-    # Save alert
-    # -----------------------------------------------------
 
     with state_lock:
 
         last_alert_time[coin] = now
 
-    if previous_signal == signal:
-
-        alert_reason = "Cooldown expired"
-
-    elif previous_signal != signal:
-
-        alert_reason = "New signal"
-
-    else:
-
-        alert_reason = "First alert"
-
     return {
         "sent": True,
-        "reason":
-            alert_reason,
-        "market_regime":
-            regime["status"],
-        "trade_status":
-            trade["status"],
-        "trade_action":
-            trade["action"]
+        "reason": "New signal",
+        "market_regime": regime["status"],
+        "trade_status": trade["status"],
+        "trade_action": trade["action"]
     }
 
 
 # =========================================================
-# ANALYSIS ENRICHMENT
+# ENRICH RESULT
 # =========================================================
 
 def enrich_result(result):
@@ -790,21 +689,13 @@ def enrich_result(result):
     )
 
     result["market_regime"] = {
-        "status":
-            regime["status"],
-        "score":
-            regime["score"],
-        "reason":
-            regime["reason"]
+        "status": regime["status"],
+        "score": regime["score"],
+        "reason": regime["reason"]
     }
 
-    result["trade_status"] = (
-        trade["status"]
-    )
-
-    result["trade_action"] = (
-        trade["action"]
-    )
+    result["trade_status"] = trade["status"]
+    result["trade_action"] = trade["action"]
 
     return result
 
@@ -856,7 +747,6 @@ def execute_scan():
             alert_status[coin] = status
 
             if status["sent"]:
-
                 alerts_sent.append(
                     coin
                 )
@@ -874,10 +764,8 @@ def execute_scan():
             "status": "success",
             "version": VERSION,
             "data": data,
-            "alerts_sent":
-                alerts_sent,
-            "alert_status":
-                alert_status
+            "alerts_sent": alerts_sent,
+            "alert_status": alert_status
         }
 
     except Exception as e:
@@ -898,13 +786,12 @@ def execute_scan():
         return {
             "status": "error",
             "version": VERSION,
-            "message":
-                str(e)
+            "message": str(e)
         }
 
 
 # =========================================================
-# API
+# ROOT
 # =========================================================
 
 @app.get("/")
@@ -917,6 +804,10 @@ def root():
     }
 
 
+# =========================================================
+# HEALTH
+# =========================================================
+
 @app.get("/health")
 def health():
 
@@ -925,10 +816,8 @@ def health():
         "service": "Crypto Alert",
         "version": VERSION,
         "rules": {
-            "minimum_quality":
-                MIN_QUALITY,
-            "minimum_risk_reward":
-                MIN_RISK_REWARD,
+            "minimum_quality": MIN_QUALITY,
+            "minimum_risk_reward": MIN_RISK_REWARD,
             "alert_cooldown_seconds":
                 ALERT_COOLDOWN,
             "scan_interval_seconds":
@@ -946,6 +835,10 @@ def health():
         }
     }
 
+
+# =========================================================
+# SCAN API
+# =========================================================
 
 @app.get("/scan")
 def scan():
@@ -972,6 +865,10 @@ def scan():
 
         scan_lock.release()
 
+
+# =========================================================
+# ALERT STATE
+# =========================================================
 
 @app.get("/alert-state")
 def alert_state():
@@ -1048,9 +945,7 @@ def scheduler():
 
                 print(
                     "Scheduled scan:",
-                    result.get(
-                        "status"
-                    )
+                    result.get("status")
                 )
 
             except Exception as e:
