@@ -18,14 +18,13 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.7.0
-# SIGNAL QUALITY FILTER
+# V2.8.0
+# MARKET OPPORTUNITY STATUS
 # =========================================================
 
 SCAN_INTERVAL = 300
 ALERT_COOLDOWN = 1800
 
-# Minimum quality required before Telegram alert
 MIN_ALERT_QUALITY = 70
 
 ALERT_SIGNALS = {
@@ -40,13 +39,10 @@ ALERT_SIGNALS = {
 # =========================================================
 
 last_signal = {}
-
 last_sent_signal = {}
-
 last_alert_time = {}
 
 state_lock = threading.Lock()
-
 scan_lock = threading.Lock()
 
 scheduler_started_at = None
@@ -61,10 +57,181 @@ last_scan_error = None
 # =========================================================
 
 def utc_now():
-
     return datetime.now(
         timezone.utc
     ).isoformat()
+
+
+# =========================================================
+# MARKET OPPORTUNITY
+# =========================================================
+
+def determine_trade_status(result):
+
+    signal = result.get(
+        "signal",
+        "WAIT"
+    )
+
+    quality_score = result.get(
+        "quality_score"
+    )
+
+    rsi = result.get(
+        "rsi"
+    )
+
+    price = result.get(
+        "price"
+    )
+
+    entry = result.get(
+        "entry",
+        {}
+    )
+
+    entry_low = entry.get(
+        "low"
+    )
+
+    entry_high = entry.get(
+        "high"
+    )
+
+    # -----------------------------------------------------
+    # Low quality
+    # -----------------------------------------------------
+
+    if (
+        quality_score is not None
+        and quality_score < MIN_ALERT_QUALITY
+    ):
+
+        return {
+            "trade_status": "LOW_QUALITY",
+            "trade_action": "AVOID"
+        }
+
+    # -----------------------------------------------------
+    # RSI extreme
+    # -----------------------------------------------------
+
+    if rsi is not None:
+
+        if rsi >= 80:
+
+            return {
+                "trade_status": "RSI_EXTREME",
+                "trade_action": "WAIT_FOR_RSI"
+            }
+
+    # -----------------------------------------------------
+    # Active BUY signal
+    # -----------------------------------------------------
+
+    if signal in {
+        "BUY SETUP",
+        "STRONG BUY"
+    }:
+
+        if (
+            price is not None
+            and entry_low is not None
+            and entry_high is not None
+        ):
+
+            if price > entry_high:
+
+                return {
+                    "trade_status": "ABOVE_ENTRY",
+                    "trade_action": "WAIT_FOR_ENTRY"
+                }
+
+            if (
+                price >= entry_low
+                and price <= entry_high
+            ):
+
+                return {
+                    "trade_status": "IN_ENTRY",
+                    "trade_action": "BUY_SETUP"
+                }
+
+        return {
+            "trade_status": "GOOD_SETUP",
+            "trade_action": "WAIT_FOR_ENTRY"
+        }
+
+    # -----------------------------------------------------
+    # WAIT but price is above entry
+    #
+    # This is especially useful for cases such as:
+    #
+    # EMA Bullish
+    # RSI Oversold
+    # Price Above Entry Zone
+    # -----------------------------------------------------
+
+    if signal == "WAIT":
+
+        if (
+            price is not None
+            and entry_high is not None
+            and price > entry_high
+        ):
+
+            return {
+                "trade_status": "ABOVE_ENTRY",
+                "trade_action": "WAIT_FOR_ENTRY"
+            }
+
+        if (
+            price is not None
+            and entry_low is not None
+            and entry_high is not None
+            and price >= entry_low
+            and price <= entry_high
+        ):
+
+            return {
+                "trade_status": "IN_ENTRY",
+                "trade_action": "WAIT_SIGNAL"
+            }
+
+        return {
+            "trade_status": "WAIT",
+            "trade_action": "WAIT"
+        }
+
+    # -----------------------------------------------------
+    # Other signals
+    # -----------------------------------------------------
+
+    return {
+        "trade_status": "WAIT",
+        "trade_action": "WAIT"
+    }
+
+
+# =========================================================
+# ENRICH ANALYSIS
+# =========================================================
+
+def enrich_result(result):
+
+    opportunity = determine_trade_status(
+        result
+    )
+
+    result["trade_status"] = opportunity[
+        "trade_status"
+    ]
+
+    result["trade_action"] = opportunity[
+        "trade_action"
+    ]
+
+    return result
 
 
 # =========================================================
@@ -115,7 +282,7 @@ def health():
 
 
 # =========================================================
-# QUALITY CHECK
+# ALERT QUALITY
 # =========================================================
 
 def check_alert_quality(result):
@@ -127,11 +294,6 @@ def check_alert_quality(result):
     quality_grade = result.get(
         "quality_grade"
     )
-
-    # -----------------------------------------------------
-    # If analyzer does not provide a quality score,
-    # do not assume it is safe to alert.
-    # -----------------------------------------------------
 
     if quality_score is None:
 
@@ -156,15 +318,12 @@ def check_alert_quality(result):
             "reason": "Invalid quality score"
         }
 
-    # -----------------------------------------------------
-    # Minimum quality filter
-    # -----------------------------------------------------
-
     if quality_score < MIN_ALERT_QUALITY:
 
         return {
             "allowed": False,
-            "reason": "Quality below alert threshold",
+            "reason":
+                "Quality below alert threshold",
             "quality_score":
                 quality_score,
             "minimum_required":
@@ -175,7 +334,8 @@ def check_alert_quality(result):
 
     return {
         "allowed": True,
-        "reason": "Quality threshold passed",
+        "reason":
+            "Quality threshold passed",
         "quality_score":
             quality_score,
         "quality_grade":
@@ -199,10 +359,6 @@ def process_alert(
     )
 
     now = time.time()
-
-    # -----------------------------------------------------
-    # Read previous state
-    # -----------------------------------------------------
 
     with state_lock:
 
@@ -241,7 +397,8 @@ def process_alert(
 
         return {
             "sent": False,
-            "reason": "Signal not alertable"
+            "reason":
+                "Signal not alertable"
         }
 
     # -----------------------------------------------------
@@ -259,9 +416,13 @@ def process_alert(
             "reason":
                 quality["reason"],
             "quality_score":
-                quality.get("quality_score"),
+                quality.get(
+                    "quality_score"
+                ),
             "quality_grade":
-                quality.get("quality_grade"),
+                quality.get(
+                    "quality_grade"
+                ),
             "minimum_required":
                 quality.get(
                     "minimum_required",
@@ -270,7 +431,7 @@ def process_alert(
         }
 
     # -----------------------------------------------------
-    # Duplicate / cooldown protection
+    # Duplicate / cooldown
     # -----------------------------------------------------
 
     if previous_sent == signal:
@@ -293,7 +454,7 @@ def process_alert(
             }
 
     # -----------------------------------------------------
-    # Message data
+    # Message
     # -----------------------------------------------------
 
     reasons = result.get(
@@ -317,14 +478,6 @@ def process_alert(
         {}
     )
 
-    quality_score = result.get(
-        "quality_score"
-    )
-
-    quality_grade = result.get(
-        "quality_grade"
-    )
-
     message = f"""
 🚨 Crypto Alert
 
@@ -340,8 +493,14 @@ Confidence:
 {result.get("confidence")}
 
 Quality:
-{quality_score}
-({quality_grade})
+{result.get("quality_score")}
+({result.get("quality_grade")})
+
+Trade Status:
+{result.get("trade_status")}
+
+Trade Action:
+{result.get("trade_action")}
 
 Reason:
 {reason_text}
@@ -362,10 +521,6 @@ Risk / Reward:
 {result.get("risk_reward")}
 """
 
-    # -----------------------------------------------------
-    # Send Telegram
-    # -----------------------------------------------------
-
     try:
 
         send_message(
@@ -384,19 +539,10 @@ Risk / Reward:
             "error": str(e)
         }
 
-    # -----------------------------------------------------
-    # Save successful alert
-    # -----------------------------------------------------
-
     with state_lock:
 
         last_sent_signal[coin] = signal
-
         last_alert_time[coin] = now
-
-    # -----------------------------------------------------
-    # Alert reason
-    # -----------------------------------------------------
 
     if previous_sent == signal:
 
@@ -414,9 +560,13 @@ Risk / Reward:
         "sent": True,
         "reason": reason,
         "quality_score":
-            quality_score,
+            result.get("quality_score"),
         "quality_grade":
-            quality_grade
+            result.get("quality_grade"),
+        "trade_status":
+            result.get("trade_status"),
+        "trade_action":
+            result.get("trade_action")
     }
 
 
@@ -440,9 +590,7 @@ def execute_scan():
         market = get_market()
 
         alerts = []
-
         alerts_sent = []
-
         alert_status = {}
 
         for coin, price in market.items():
@@ -450,6 +598,15 @@ def execute_scan():
             result = analyze(
                 coin,
                 price
+            )
+
+            # -------------------------------------------------
+            # Preserve original analyzer data
+            # and add opportunity status.
+            # -------------------------------------------------
+
+            result = enrich_result(
+                result
             )
 
             alerts.append(
@@ -587,10 +744,14 @@ def alert_state():
 
             states[coin] = {
                 "signal":
-                    last_signal.get(coin),
+                    last_signal.get(
+                        coin
+                    ),
 
                 "last_sent_signal":
-                    last_sent_signal.get(coin),
+                    last_sent_signal.get(
+                        coin
+                    ),
 
                 "cooldown_remaining":
                     cooldown_remaining
@@ -614,7 +775,7 @@ def scheduler():
     scheduler_started_at = utc_now()
 
     print(
-        "Crypto Alert V2.7 scheduler started: "
+        "Crypto Alert V2.8 scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
