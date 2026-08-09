@@ -5,6 +5,7 @@ from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
 from app.crypto.binance_account import get_portfolio
+from app.crypto.binance_position import get_positions
 
 import threading
 import time
