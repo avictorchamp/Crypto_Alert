@@ -1098,6 +1098,44 @@ def portfolio():
 
 
 
+
+# =========================================================
+# BINANCE POSITIONS
+# =========================================================
+
+@app.get("/positions")
+def positions():
+
+    try:
+
+        result = get_positions()
+
+        return {
+            "status": "success",
+            "version": VERSION,
+            "source": "Binance TH",
+            "account_mode": "READ_ONLY",
+            "positions": result
+        }
+
+    except Exception as e:
+
+        print(
+            f"Position monitor error: {e}"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "version": VERSION,
+                "source": "Binance TH",
+                "account_mode":
+                    "READ_ONLY",
+                "message": str(e)
+            }
+        )
+
 # =========================================================
 # SCHEDULER
 # =========================================================
