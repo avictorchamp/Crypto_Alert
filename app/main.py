@@ -18,13 +18,15 @@ app = FastAPI(
 
 
 # =========================================================
-# V2.6.0
-# PRODUCTION RELIABILITY
+# V2.7.0
+# SIGNAL QUALITY FILTER
 # =========================================================
 
-SCAN_INTERVAL = 300       # 5 minutes
-ALERT_COOLDOWN = 1800     # 30 minutes
+SCAN_INTERVAL = 300
+ALERT_COOLDOWN = 1800
 
+# Minimum quality required before Telegram alert
+MIN_ALERT_QUALITY = 70
 
 ALERT_SIGNALS = {
     "BUY SETUP",
@@ -45,10 +47,8 @@ last_alert_time = {}
 
 state_lock = threading.Lock()
 
-# Prevent two scans from running at the same time
 scan_lock = threading.Lock()
 
-# Scheduler / scan status
 scheduler_started_at = None
 last_scan_started = None
 last_scan_completed = None
@@ -94,11 +94,20 @@ def health():
             "status": "healthy",
             "service": "Crypto Alert",
             "version": VERSION,
+            "alert_filter": {
+                "minimum_quality":
+                    MIN_ALERT_QUALITY
+            },
             "scheduler": {
-                "started_at": scheduler_started_at,
-                "last_scan": last_scan_completed,
+                "started_at":
+                    scheduler_started_at,
+
+                "last_scan":
+                    last_scan_completed,
+
                 "last_scan_duration_seconds":
                     last_scan_duration,
+
                 "last_error":
                     last_scan_error
             }
@@ -106,10 +115,83 @@ def health():
 
 
 # =========================================================
+# QUALITY CHECK
+# =========================================================
+
+def check_alert_quality(result):
+
+    quality_score = result.get(
+        "quality_score"
+    )
+
+    quality_grade = result.get(
+        "quality_grade"
+    )
+
+    # -----------------------------------------------------
+    # If analyzer does not provide a quality score,
+    # do not assume it is safe to alert.
+    # -----------------------------------------------------
+
+    if quality_score is None:
+
+        return {
+            "allowed": False,
+            "reason": "Quality score unavailable"
+        }
+
+    try:
+
+        quality_score = float(
+            quality_score
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
+
+        return {
+            "allowed": False,
+            "reason": "Invalid quality score"
+        }
+
+    # -----------------------------------------------------
+    # Minimum quality filter
+    # -----------------------------------------------------
+
+    if quality_score < MIN_ALERT_QUALITY:
+
+        return {
+            "allowed": False,
+            "reason": "Quality below alert threshold",
+            "quality_score":
+                quality_score,
+            "minimum_required":
+                MIN_ALERT_QUALITY,
+            "quality_grade":
+                quality_grade
+        }
+
+    return {
+        "allowed": True,
+        "reason": "Quality threshold passed",
+        "quality_score":
+            quality_score,
+        "quality_grade":
+            quality_grade
+    }
+
+
+# =========================================================
 # ALERT PROCESSOR
 # =========================================================
 
-def process_alert(coin, price, result):
+def process_alert(
+    coin,
+    price,
+    result
+):
 
     signal = result.get(
         "signal",
@@ -140,10 +222,7 @@ def process_alert(coin, price, result):
         last_signal[coin] = signal
 
     # -----------------------------------------------------
-    # Non-alert signal
-    #
-    # Reset alert state so a future BUY/SELL signal
-    # can generate a new Telegram alert.
+    # Signal not alertable
     # -----------------------------------------------------
 
     if signal not in ALERT_SIGNALS:
@@ -166,6 +245,31 @@ def process_alert(coin, price, result):
         }
 
     # -----------------------------------------------------
+    # Quality filter
+    # -----------------------------------------------------
+
+    quality = check_alert_quality(
+        result
+    )
+
+    if not quality["allowed"]:
+
+        return {
+            "sent": False,
+            "reason":
+                quality["reason"],
+            "quality_score":
+                quality.get("quality_score"),
+            "quality_grade":
+                quality.get("quality_grade"),
+            "minimum_required":
+                quality.get(
+                    "minimum_required",
+                    MIN_ALERT_QUALITY
+                )
+        }
+
+    # -----------------------------------------------------
     # Duplicate / cooldown protection
     # -----------------------------------------------------
 
@@ -179,11 +283,13 @@ def process_alert(coin, price, result):
 
             return {
                 "sent": False,
-                "reason": "Duplicate signal cooldown",
-                "cooldown_remaining": round(
-                    ALERT_COOLDOWN - elapsed,
-                    1
-                )
+                "reason":
+                    "Duplicate signal cooldown",
+                "cooldown_remaining":
+                    round(
+                        ALERT_COOLDOWN - elapsed,
+                        1
+                    )
             }
 
     # -----------------------------------------------------
@@ -211,6 +317,14 @@ def process_alert(coin, price, result):
         {}
     )
 
+    quality_score = result.get(
+        "quality_score"
+    )
+
+    quality_grade = result.get(
+        "quality_grade"
+    )
+
     message = f"""
 🚨 Crypto Alert
 
@@ -226,8 +340,8 @@ Confidence:
 {result.get("confidence")}
 
 Quality:
-{result.get("quality_score")}
-({result.get("quality_grade")})
+{quality_score}
+({quality_grade})
 
 Reason:
 {reason_text}
@@ -249,7 +363,7 @@ Risk / Reward:
 """
 
     # -----------------------------------------------------
-    # Telegram
+    # Send Telegram
     # -----------------------------------------------------
 
     try:
@@ -281,7 +395,7 @@ Risk / Reward:
         last_alert_time[coin] = now
 
     # -----------------------------------------------------
-    # Reason
+    # Alert reason
     # -----------------------------------------------------
 
     if previous_sent == signal:
@@ -298,7 +412,11 @@ Risk / Reward:
 
     return {
         "sent": True,
-        "reason": reason
+        "reason": reason,
+        "quality_score":
+            quality_score,
+        "quality_grade":
+            quality_grade
     }
 
 
@@ -367,8 +485,10 @@ def execute_scan():
             "status": "success",
             "version": VERSION,
             "data": alerts,
-            "alerts_sent": alerts_sent,
-            "alert_status": alert_status
+            "alerts_sent":
+                alerts_sent,
+            "alert_status":
+                alert_status
         }
 
     except Exception as e:
@@ -396,15 +516,11 @@ def execute_scan():
 
 
 # =========================================================
-# NORMAL SCAN API
+# SCAN API
 # =========================================================
 
 @app.get("/scan")
 def scan():
-
-    # -----------------------------------------------------
-    # Prevent overlapping scans
-    # -----------------------------------------------------
 
     if not scan_lock.acquire(
         blocking=False
@@ -488,7 +604,7 @@ def alert_state():
 
 
 # =========================================================
-# BACKGROUND SCHEDULER
+# SCHEDULER
 # =========================================================
 
 def scheduler():
@@ -498,15 +614,11 @@ def scheduler():
     scheduler_started_at = utc_now()
 
     print(
-        "Crypto Alert V2.6 scheduler started: "
+        "Crypto Alert V2.7 scheduler started: "
         f"every {SCAN_INTERVAL} seconds"
     )
 
     while True:
-
-        # -------------------------------------------------
-        # Don't overlap with a manually requested /scan
-        # -------------------------------------------------
 
         if scan_lock.acquire(
             blocking=False
