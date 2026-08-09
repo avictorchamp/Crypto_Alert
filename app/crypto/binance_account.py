@@ -6,13 +6,29 @@ import requests
 from urllib.parse import urlencode
 
 
-BINANCE_API_URL = "https://api.binance.th"
-RECV_WINDOW = 10000
+# =========================================================
+# BINANCE TH
+# READ-ONLY ACCOUNT INTEGRATION
+# =========================================================
 
+BINANCE_API_URL = "https://api.binance.th"
+
+RECV_WINDOW = 5000
+
+
+# =========================================================
+# CREDENTIALS
+# =========================================================
 
 def get_credentials():
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_API_SECRET")
+
+    api_key = os.getenv(
+        "BINANCE_API_KEY"
+    )
+
+    api_secret = os.getenv(
+        "BINANCE_API_SECRET"
+    )
 
     if not api_key:
         raise RuntimeError(
@@ -24,17 +40,20 @@ def get_credentials():
             "BINANCE_API_SECRET is missing"
         )
 
-    # Remove accidental whitespace.
     return (
         api_key.strip(),
         api_secret.strip()
     )
 
 
+# =========================================================
+# SERVER TIME
+# =========================================================
+
 def get_server_time():
 
     response = requests.get(
-        f"{BINANCE_API_URL}/api/v3/time",
+        f"{BINANCE_API_URL}/api/v1/time",
         timeout=10
     )
 
@@ -42,12 +61,25 @@ def get_server_time():
 
     data = response.json()
 
+    if "serverTime" not in data:
+
+        raise RuntimeError(
+            f"Invalid Binance TH time response: {data}"
+        )
+
     return int(
         data["serverTime"]
     )
 
 
-def signed_get(path, params=None):
+# =========================================================
+# SIGNED GET
+# =========================================================
+
+def signed_get(
+    path,
+    params=None
+):
 
     api_key, api_secret = get_credentials()
 
@@ -55,14 +87,14 @@ def signed_get(path, params=None):
         params or {}
     )
 
-    # Use Binance server time instead of Render's
-    # local clock.
-    params["timestamp"] = (
-        get_server_time()
-    )
+    # Binance TH server timestamp.
+    params["timestamp"] = get_server_time()
 
     params["recvWindow"] = RECV_WINDOW
 
+    # IMPORTANT:
+    # Sign exactly the parameter string that
+    # will be sent to Binance TH.
     query_string = urlencode(
         params,
         doseq=True
@@ -74,61 +106,93 @@ def signed_get(path, params=None):
         hashlib.sha256
     ).hexdigest()
 
-    signed_query = (
-        f"{query_string}"
-        f"&signature={signature}"
-    )
-
-    url = (
-        f"{BINANCE_API_URL}"
-        f"{path}"
-        f"?{signed_query}"
-    )
+    params["signature"] = signature
 
     headers = {
+        "Accept": "application/json",
         "X-MBX-APIKEY": api_key
     }
 
     response = requests.get(
-        url,
+        f"{BINANCE_API_URL}{path}",
+        params=params,
         headers=headers,
         timeout=15
     )
 
     # -----------------------------------------------------
-    # IMPORTANT:
-    # Return Binance's actual response instead of hiding it.
+    # Return Binance TH's real error.
     # -----------------------------------------------------
 
     if response.status_code != 200:
 
         try:
+
             error_body = response.json()
+
         except Exception:
+
             error_body = {
                 "raw": response.text
             }
 
         raise RuntimeError(
-            "Binance API error "
+            "Binance TH API error "
             f"HTTP {response.status_code}: "
             f"{error_body}"
         )
 
-    return response.json()
+    try:
 
+        data = response.json()
+
+    except Exception:
+
+        raise RuntimeError(
+            "Binance TH returned invalid JSON"
+        )
+
+    # Binance TH normally uses code 0 for success.
+    if isinstance(data, dict):
+
+        code = data.get("code")
+
+        if (
+            code is not None
+            and code != 0
+        ):
+
+            raise RuntimeError(
+                "Binance TH API error: "
+                f"{data}"
+            )
+
+    return data
+
+
+# =========================================================
+# ACCOUNT INFORMATION
+# Binance TH:
+# GET /api/v1/accountV2
+# =========================================================
 
 def get_account():
 
     return signed_get(
-        "/api/v3/account"
+        "/api/v1/accountV2"
     )
 
+
+# =========================================================
+# PUBLIC PRICES
+# Binance TH:
+# GET /api/v1/ticker/price
+# =========================================================
 
 def get_all_prices():
 
     response = requests.get(
-        f"{BINANCE_API_URL}/api/v3/ticker/price",
+        f"{BINANCE_API_URL}/api/v1/ticker/price",
         timeout=15
     )
 
@@ -138,7 +202,21 @@ def get_all_prices():
 
     prices = {}
 
-    for item in data:
+    # Binance TH can return an array
+    # when symbol is omitted.
+    if isinstance(data, list):
+
+        items = data
+
+    elif isinstance(data, dict):
+
+        items = [data]
+
+    else:
+
+        return prices
+
+    for item in items:
 
         symbol = item.get(
             "symbol"
@@ -152,17 +230,24 @@ def get_all_prices():
             continue
 
         try:
+
             prices[symbol] = float(
                 price
             )
+
         except (
             TypeError,
             ValueError
         ):
+
             continue
 
     return prices
 
+
+# =========================================================
+# PORTFOLIO
+# =========================================================
 
 def get_portfolio():
 
@@ -184,6 +269,9 @@ def get_portfolio():
         asset = balance.get(
             "asset"
         )
+
+        if not asset:
+            continue
 
         try:
 
@@ -212,8 +300,13 @@ def get_portfolio():
             free + locked
         )
 
+        # Ignore zero balances.
         if total <= 0:
             continue
+
+        # -------------------------------------------------
+        # USDT
+        # -------------------------------------------------
 
         if asset == "USDT":
 
@@ -221,9 +314,17 @@ def get_portfolio():
 
         else:
 
-            price_usdt = prices.get(
+            symbol = (
                 f"{asset}USDT"
             )
+
+            price_usdt = prices.get(
+                symbol
+            )
+
+        # -------------------------------------------------
+        # Value
+        # -------------------------------------------------
 
         if price_usdt is not None:
 
@@ -244,7 +345,14 @@ def get_portfolio():
                 "free": free,
                 "locked": locked,
                 "total": total,
-                "price_usdt": price_usdt,
+                "price_usdt": (
+                    round(
+                        price_usdt,
+                        12
+                    )
+                    if price_usdt is not None
+                    else None
+                ),
                 "value_usdt": (
                     round(
                         value_usdt,
@@ -256,6 +364,7 @@ def get_portfolio():
             }
         )
 
+    # Highest-value assets first.
     portfolio.sort(
         key=lambda item: (
             item["value_usdt"]
