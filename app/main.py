@@ -95,6 +95,109 @@ def utc_now():
 
 
 # =========================================================
+# PORTFOLIO MONITOR
+# =========================================================
+
+from app.crypto.portfolio_monitor import (
+    run_portfolio_monitor,
+)
+
+
+@app.get("/portfolio-monitor")
+def portfolio_monitor():
+
+    try:
+
+        # ---------------------------------------------
+        # Get current Binance TH portfolio
+        # ---------------------------------------------
+
+        portfolio = get_portfolio()
+
+        if portfolio.get(
+            "status"
+        ) != "success":
+
+            return {
+                "status": "error",
+                "version": VERSION,
+                "stage": "portfolio",
+                "portfolio": portfolio
+            }
+
+        # ---------------------------------------------
+        # Build market data
+        # ---------------------------------------------
+
+        market_data = {}
+
+        scan_result = scan()
+
+        if (
+            scan_result
+            and scan_result.get(
+                "status"
+            ) == "success"
+        ):
+
+            for item in scan_result.get(
+                "data",
+                []
+            ):
+
+                coin = str(
+                    item.get(
+                        "coin",
+                        ""
+                    )
+                ).upper()
+
+                if coin:
+
+                    market_data[
+                        coin
+                    ] = item
+
+        # ---------------------------------------------
+        # Monitor positions
+        # ---------------------------------------------
+
+        result = run_portfolio_monitor(
+            portfolio_response=portfolio,
+            market_data=market_data
+        )
+
+        return {
+            "status":
+                "success",
+
+            "version":
+                VERSION,
+
+            "portfolio":
+                portfolio,
+
+            "monitor":
+                result
+        }
+
+    except Exception as e:
+
+        return {
+            "status":
+                "error",
+
+            "version":
+                VERSION,
+
+            "stage":
+                "portfolio_monitor",
+
+            "message":
+                str(e)
+        }
+
+# =========================================================
 # SAFE NUMBER
 # =========================================================
 
