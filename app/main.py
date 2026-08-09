@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
+from app.crypto.binance_account import get_portfolio
 
 import threading
 import time
@@ -1057,6 +1058,43 @@ def alert_state():
         "version": VERSION,
         "states": result
     }
+
+# =========================================================
+# BINANCE PORTFOLIO
+# =========================================================
+
+@app.get("/portfolio")
+def portfolio():
+
+    try:
+
+        result = get_portfolio()
+
+        return {
+            "status": "success",
+            "version": VERSION,
+            "source": "Binance",
+            "account_mode": "READ_ONLY",
+            "portfolio": result
+        }
+
+    except Exception as e:
+
+        print(
+            f"Portfolio error: {e}"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "version": VERSION,
+                "source": "Binance",
+                "account_mode": "READ_ONLY",
+                "message": str(e)
+            }
+        )
+
 
 
 # =========================================================
