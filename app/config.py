@@ -9,4 +9,4 @@ TELEGRAM_CHAT_ID = os.getenv(
     "TELEGRAM_CHAT_ID"
 )
 
-VERSION = "2.6.0"
+VERSION = "2.7.0"
