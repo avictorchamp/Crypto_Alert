@@ -6,7 +6,7 @@ import requests
 from urllib.parse import urlencode
 
 
-BINANCE_API_URL = "https://api.binance.com"
+BINANCE_API_URL = "https://api.binance.th"
 RECV_WINDOW = 10000
 
 
