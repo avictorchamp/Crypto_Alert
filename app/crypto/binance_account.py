@@ -7,55 +7,58 @@ from urllib.parse import urlencode
 
 
 BINANCE_API_URL = "https://api.binance.com"
+RECV_WINDOW = 10000
 
-API_KEY_ENV = "BINANCE_API_KEY"
-API_SECRET_ENV = "BINANCE_API_SECRET"
-
-RECV_WINDOW = 5000
-
-
-# =========================================================
-# CONFIG
-# =========================================================
 
 def get_credentials():
-
-    api_key = os.getenv(
-        API_KEY_ENV
-    )
-
-    api_secret = os.getenv(
-        API_SECRET_ENV
-    )
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_API_SECRET")
 
     if not api_key:
         raise RuntimeError(
-            "BINANCE_API_KEY is not configured"
+            "BINANCE_API_KEY is missing"
         )
 
     if not api_secret:
         raise RuntimeError(
-            "BINANCE_API_SECRET is not configured"
+            "BINANCE_API_SECRET is missing"
         )
 
-    return api_key, api_secret
+    # Remove accidental whitespace.
+    return (
+        api_key.strip(),
+        api_secret.strip()
+    )
 
 
-# =========================================================
-# SIGNED REQUEST
-# =========================================================
+def get_server_time():
 
-def signed_get(
-    path,
-    params=None
-):
+    response = requests.get(
+        f"{BINANCE_API_URL}/api/v3/time",
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    return int(
+        data["serverTime"]
+    )
+
+
+def signed_get(path, params=None):
 
     api_key, api_secret = get_credentials()
 
-    params = params or {}
+    params = dict(
+        params or {}
+    )
 
-    params["timestamp"] = int(
-        time.time() * 1000
+    # Use Binance server time instead of Render's
+    # local clock.
+    params["timestamp"] = (
+        get_server_time()
     )
 
     params["recvWindow"] = RECV_WINDOW
@@ -71,27 +74,49 @@ def signed_get(
         hashlib.sha256
     ).hexdigest()
 
-    params["signature"] = signature
+    signed_query = (
+        f"{query_string}"
+        f"&signature={signature}"
+    )
+
+    url = (
+        f"{BINANCE_API_URL}"
+        f"{path}"
+        f"?{signed_query}"
+    )
 
     headers = {
         "X-MBX-APIKEY": api_key
     }
 
     response = requests.get(
-        f"{BINANCE_API_URL}{path}",
-        params=params,
+        url,
         headers=headers,
         timeout=15
     )
 
-    response.raise_for_status()
+    # -----------------------------------------------------
+    # IMPORTANT:
+    # Return Binance's actual response instead of hiding it.
+    # -----------------------------------------------------
+
+    if response.status_code != 200:
+
+        try:
+            error_body = response.json()
+        except Exception:
+            error_body = {
+                "raw": response.text
+            }
+
+        raise RuntimeError(
+            "Binance API error "
+            f"HTTP {response.status_code}: "
+            f"{error_body}"
+        )
 
     return response.json()
 
-
-# =========================================================
-# ACCOUNT
-# =========================================================
 
 def get_account():
 
@@ -99,10 +124,6 @@ def get_account():
         "/api/v3/account"
     )
 
-
-# =========================================================
-# PUBLIC PRICES
-# =========================================================
 
 def get_all_prices():
 
@@ -131,24 +152,17 @@ def get_all_prices():
             continue
 
         try:
-
             prices[symbol] = float(
                 price
             )
-
         except (
             TypeError,
             ValueError
         ):
-
             continue
 
     return prices
 
-
-# =========================================================
-# PORTFOLIO
-# =========================================================
 
 def get_portfolio():
 
@@ -171,24 +185,20 @@ def get_portfolio():
             "asset"
         )
 
-        free = balance.get(
-            "free",
-            "0"
-        )
-
-        locked = balance.get(
-            "locked",
-            "0"
-        )
-
         try:
 
-            free_amount = float(
-                free
+            free = float(
+                balance.get(
+                    "free",
+                    0
+                )
             )
 
-            locked_amount = float(
-                locked
+            locked = float(
+                balance.get(
+                    "locked",
+                    0
+                )
             )
 
         except (
@@ -198,73 +208,58 @@ def get_portfolio():
 
             continue
 
-        total_amount = (
-            free_amount
-            + locked_amount
+        total = (
+            free + locked
         )
 
-        # Ignore dust / zero balances.
-        if total_amount <= 0:
+        if total <= 0:
             continue
-
-        # -------------------------------------------------
-        # USDT
-        # -------------------------------------------------
 
         if asset == "USDT":
 
-            usdt_price = 1.0
-
-            usdt_value = total_amount
+            price_usdt = 1.0
 
         else:
 
-            symbol = (
+            price_usdt = prices.get(
                 f"{asset}USDT"
             )
 
-            usdt_price = prices.get(
-                symbol
+        if price_usdt is not None:
+
+            value_usdt = (
+                total
+                * price_usdt
             )
 
-            if usdt_price is None:
+            total_usdt += value_usdt
 
-                usdt_value = None
+        else:
 
-            else:
-
-                usdt_value = (
-                    total_amount
-                    * usdt_price
-                )
-
-        if usdt_value is not None:
-
-            total_usdt += usdt_value
+            value_usdt = None
 
         portfolio.append(
             {
                 "asset": asset,
-                "free": free_amount,
-                "locked": locked_amount,
-                "total": total_amount,
-                "price_usdt": usdt_price,
+                "free": free,
+                "locked": locked,
+                "total": total,
+                "price_usdt": price_usdt,
                 "value_usdt": (
                     round(
-                        usdt_value,
+                        value_usdt,
                         8
                     )
-                    if usdt_value is not None
+                    if value_usdt is not None
                     else None
                 )
             }
         )
 
-    # Highest value first.
     portfolio.sort(
-        key=lambda x: (
-            x["value_usdt"]
-            if x["value_usdt"] is not None
+        key=lambda item: (
+            item["value_usdt"]
+            if item["value_usdt"] is not None
             else 0
         ),
         reverse=True
