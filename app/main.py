@@ -1,573 +1,927 @@
-import time
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
+from app.crypto.price import get_market
+from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
 
+from app.crypto.binance_account import get_portfolio
+from app.crypto.binance_position import get_positions
+
+from app.crypto.portfolio_monitor import (
+    run_portfolio_monitor,
+)
+
+import threading
+import time
+from datetime import datetime, timezone
+
 
 # =========================================================
-# PORTFOLIO ALERT
-# VERSION 1.0.0
+# CRYPTO ALERT
+# Version 3.4.1
 #
-# Purpose:
-#   Send Telegram alerts only when a held position
-#   requires attention.
+# SYSTEM
 #
-# READ ONLY
-# NO BUY
-# NO SELL
-# NO ORDER
+# 1. WATCHLIST
+#    - Always scans for opportunities
+#    - Works even when portfolio is empty
+#
+# 2. PORTFOLIO MONITOR
+#    - Monitors assets actually held
+#    - Uses portfolio_monitor.py
+#    - Binance TH READ ONLY
+#
+# 3. TELEGRAM
+#    - Sends important alerts
+#    - Cooldown protection
+#
+# 4. SCHEDULER
+#    - Automatic scan every 5 minutes
+#
+# NO AUTOMATIC TRADING
 # =========================================================
 
 
-VERSION = "1.0.0"
+VERSION = "3.4.1"
 
-ALERT_COOLDOWN = 1800  # 30 minutes
+SCAN_INTERVAL = 300
+
+ALERT_COOLDOWN = 1800
+
+MIN_QUALITY = 70
+
+MIN_RISK_REWARD = 1.0
+
+
+BUY_SIGNALS = {
+    "BUY SETUP",
+    "STRONG BUY",
+}
+
+
+SELL_SIGNALS = {
+    "SELL WATCH",
+    "STRONG SELL",
+}
 
 
 # =========================================================
-# STATE
+# APP
 # =========================================================
 
-_last_alert = {}
+app = FastAPI(
+    title="Crypto Alert",
+    version=VERSION,
+)
 
 
 # =========================================================
-# HELPERS
+# GLOBAL STATE
 # =========================================================
 
-def safe_float(
+last_signal = {}
+
+last_alert_time = {}
+
+scheduler_started_at = None
+
+last_scan_started = None
+
+last_scan_completed = None
+
+last_scan_duration = None
+
+last_scan_error = None
+
+last_watchlist_result = []
+
+last_portfolio_result = []
+
+state_lock = threading.Lock()
+
+scan_lock = threading.Lock()
+
+
+# =========================================================
+# TIME
+# =========================================================
+
+def utc_now():
+
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
+
+
+# =========================================================
+# SAFE FLOAT
+# =========================================================
+
+def to_float(
     value,
     default=None,
 ):
 
     try:
+
         return float(value)
 
     except (
         TypeError,
         ValueError,
     ):
+
         return default
 
 
+# =========================================================
+# FORMAT NUMBER
+# =========================================================
+
 def fmt(
     value,
-    digits=6,
+    digits=4,
 ):
 
-    number = safe_float(
+    number = to_float(
         value
     )
 
     if number is None:
+
         return "N/A"
 
     return f"{number:,.{digits}f}"
 
 
 # =========================================================
-# COOLDOWN
+# TELEGRAM TEST
 # =========================================================
 
-def check_cooldown(
-    key,
-):
-
-    now = time.time()
-
-    previous = _last_alert.get(
-        key
-    )
-
-    if previous is None:
-        return {
-            "allowed": True,
-            "remaining": 0,
-        }
-
-    elapsed = (
-        now - previous
-    )
-
-    if elapsed >= ALERT_COOLDOWN:
-
-        return {
-            "allowed": True,
-            "remaining": 0,
-        }
-
-    return {
-        "allowed": False,
-        "remaining": round(
-            ALERT_COOLDOWN - elapsed,
-            1,
-        ),
-    }
-
-
-# =========================================================
-# CLASSIFY POSITION ACTION
-# =========================================================
-
-def classify_position(
-    position,
-):
-
-    pnl = safe_float(
-        position.get(
-            "unrealized_pnl_percent"
-        )
-    )
-
-    state = position.get(
-        "position_state"
-    )
-
-    market_regime = (
-        position.get(
-            "market_regime"
-        )
-        or {}
-    )
-
-    regime = market_regime.get(
-        "status"
-    )
-
-    quality = safe_float(
-        position.get(
-            "quality_score"
-        )
-    )
-
-    risk_reward = safe_float(
-        position.get(
-            "risk_reward"
-        )
-    )
-
-    # =====================================================
-    # COST BASIS UNKNOWN
-    # =====================================================
-
-    if pnl is None:
-
-        return {
-            "action":
-                "MONITOR",
-
-            "priority":
-                "LOW",
-
-            "reason":
-                "Average entry price unavailable",
-        }
-
-    # =====================================================
-    # STRONG PROFIT
-    # =====================================================
-
-    if pnl >= 15:
-
-        return {
-            "action":
-                "TAKE_PROFIT_REVIEW",
-
-            "priority":
-                "HIGH",
-
-            "reason":
-                "Position profit is above 15%",
-        }
-
-    if pnl >= 10:
-
-        return {
-            "action":
-                "TAKE_PROFIT_REVIEW",
-
-            "priority":
-                "HIGH",
-
-            "reason":
-                "Position profit is above 10%",
-        }
-
-    if pnl >= 5:
-
-        return {
-            "action":
-                "TAKE_PROFIT_REVIEW",
-
-            "priority":
-                "MEDIUM",
-
-            "reason":
-                "Position profit is above 5%",
-        }
-
-    # =====================================================
-    # LOSS
-    # =====================================================
-
-    if pnl <= -10:
-
-        return {
-            "action":
-                "EXIT_REVIEW",
-
-            "priority":
-                "CRITICAL",
-
-            "reason":
-                "Position loss is below -10%",
-        }
-
-    if pnl <= -5:
-
-        return {
-            "action":
-                "PROTECT",
-
-            "priority":
-                "HIGH",
-
-            "reason":
-                "Position loss reached -5%",
-        }
-
-    # =====================================================
-    # BEARISH MARKET
-    # =====================================================
-
-    if regime == "BEARISH":
-
-        return {
-            "action":
-                "EXIT_REVIEW",
-
-            "priority":
-                "HIGH",
-
-            "reason":
-                "Market regime is bearish",
-        }
-
-    # =====================================================
-    # LOW QUALITY
-    # =====================================================
-
-    if (
-        quality is not None
-        and quality < 60
-    ):
-
-        return {
-            "action":
-                "REVIEW",
-
-            "priority":
-                "MEDIUM",
-
-            "reason":
-                "Current setup quality is low",
-        }
-
-    # =====================================================
-    # LOW RISK / REWARD
-    # =====================================================
-
-    if (
-        risk_reward is not None
-        and risk_reward < 1.0
-    ):
-
-        return {
-            "action":
-                "REVIEW",
-
-            "priority":
-                "MEDIUM",
-
-            "reason":
-                "Current risk/reward is below 1.0",
-        }
-
-    # =====================================================
-    # NORMAL
-    # =====================================================
-
-    return {
-        "action":
-            "HOLD",
-
-        "priority":
-            "LOW",
-
-        "reason":
-            "No immediate action required",
-    }
-
-
-# =========================================================
-# BUILD TELEGRAM MESSAGE
-# =========================================================
-
-def build_message(
-    position,
-    decision,
-):
-
-    asset = position.get(
-        "asset",
-        "UNKNOWN",
-    )
-
-    symbol = position.get(
-        "symbol",
-        asset,
-    )
-
-    quantity = position.get(
-        "quantity"
-    )
-
-    average_entry = position.get(
-        "average_entry"
-    )
-
-    current_price = position.get(
-        "current_price"
-    )
-
-    pnl_percent = position.get(
-        "unrealized_pnl_percent"
-    )
-
-    pnl = position.get(
-        "unrealized_pnl"
-    )
-
-    market_value = position.get(
-        "market_value"
-    )
-
-    market_regime = (
-        position.get(
-            "market_regime"
-        )
-        or {}
-    )
-
-    regime = market_regime.get(
-        "status",
-        "UNKNOWN",
-    )
-
-    quality = position.get(
-        "quality_score"
-    )
-
-    grade = position.get(
-        "quality_grade"
-    )
-
-    action = decision.get(
-        "action",
-        "REVIEW",
-    )
-
-    priority = decision.get(
-        "priority",
-        "MEDIUM",
-    )
-
-    reason = decision.get(
-        "reason",
-        "",
-    )
-
-    if action == "TAKE_PROFIT_REVIEW":
-
-        emoji = "🟢"
-
-    elif action == "PROTECT":
-
-        emoji = "🟠"
-
-    elif action == "EXIT_REVIEW":
-
-        emoji = "🔴"
-
-    else:
-
-        emoji = "🟡"
-
-    pnl_text = (
-        f"{fmt(pnl_percent, 2)}%"
-        if pnl_percent is not None
-        else "N/A"
-    )
-
-    message = f"""
-{emoji} PORTFOLIO ALERT
+@app.get("/test-alert")
+def test_alert():
+
+    message = """
+🚨 CRYPTO ALERT TEST
 
 ━━━━━━━━━━━━━━━━━━
-{asset}
-{symbol}
+BTC/USDT
 ━━━━━━━━━━━━━━━━━━
 
-📌 ACTION
-{action}
+📌 SIGNAL
+BUY SETUP
 
-🚦 PRIORITY
-{priority}
+💰 PRICE
+65000.00
 
-💰 CURRENT PRICE
-{fmt(current_price)}
-
-📦 QUANTITY
-{fmt(quantity, 8)}
-
-🎯 AVERAGE ENTRY
-{fmt(average_entry)}
-
-📊 UNREALIZED P/L
-{pnl_text}
-
-💵 P/L VALUE
-{fmt(pnl)}
-
-💼 MARKET VALUE
-{fmt(market_value)}
-
-📈 MARKET REGIME
-{regime}
+📊 CONFIDENCE
+80%
 
 ⭐ QUALITY
-{quality if quality is not None else "N/A"}
-{f"({grade})" if grade else ""}
+80 (B)
 
-🧠 REASON
-{reason}
+📈 MARKET
+BULLISH
+
+📉 RSI
+50.00
+
+🎯 ENTRY
+64255.13 - 64576.41
+
+🛑 STOP LOSS
+63612.58
+
+🎯 TP1
+65292.32
+
+🎯 TP2
+66022.15
+
+⚖️ RISK / REWARD
+1.09
 
 ━━━━━━━━━━━━━━━━━━
 
-⚠️ READ ONLY
+⚠️ TEST ALERT ONLY
 
-No automatic BUY or SELL order
-has been executed.
+This is a Telegram connectivity test.
 
-Review the position manually.
+This is NOT a real trading signal.
+
+No automatic trading is performed.
 """
-
-    return message.strip()
-
-
-# =========================================================
-# SEND SINGLE POSITION ALERT
-# =========================================================
-
-def send_position_alert(
-    position,
-    force=False,
-):
-
-    asset = position.get(
-        "asset",
-        "UNKNOWN",
-    )
-
-    decision = classify_position(
-        position
-    )
-
-    action = decision.get(
-        "action"
-    )
-
-    priority = decision.get(
-        "priority"
-    )
-
-    # -----------------------------------------------------
-    # HOLD is intentionally silent
-    # -----------------------------------------------------
-
-    if action == "HOLD":
-
-        return {
-            "sent":
-                False,
-
-            "action":
-                action,
-
-            "reason":
-                "No alert required",
-        }
-
-    # -----------------------------------------------------
-    # Normal MONITOR is silent
-    # -----------------------------------------------------
-
-    if action == "MONITOR":
-
-        return {
-            "sent":
-                False,
-
-            "action":
-                action,
-
-            "reason":
-                decision.get(
-                    "reason"
-                ),
-        }
-
-    # -----------------------------------------------------
-    # Cooldown
-    # -----------------------------------------------------
-
-    cooldown_key = (
-        f"{asset}:{action}"
-    )
-
-    if not force:
-
-        cooldown = check_cooldown(
-            cooldown_key
-        )
-
-        if not cooldown["allowed"]:
-
-            return {
-                "sent":
-                    False,
-
-                "action":
-                    action,
-
-                "reason":
-                    "Duplicate alert cooldown",
-
-                "cooldown_remaining":
-                    cooldown["remaining"],
-            }
-
-    # -----------------------------------------------------
-    # Telegram
-    # -----------------------------------------------------
-
-    message = build_message(
-        position,
-        decision,
-    )
 
     try:
 
         send_message(
             message
+        )
+
+        return {
+            "status":
+                "success",
+
+            "test":
+                True,
+
+            "version":
+                VERSION,
+
+            "telegram":
+                True,
+
+            "message":
+                "Test alert sent",
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+            status_code=500,
+
+            content={
+                "status":
+                    "error",
+
+                "test":
+                    True,
+
+                "version":
+                    VERSION,
+
+                "telegram":
+                    False,
+
+                "message":
+                    str(e),
+            },
+        )
+
+
+# =========================================================
+# MARKET REGIME
+# =========================================================
+
+def get_market_regime(
+    result,
+):
+
+    ema20 = to_float(
+        result.get(
+            "ema20"
+        )
+    )
+
+    ema50 = to_float(
+        result.get(
+            "ema50"
+        )
+    )
+
+    if (
+        ema20 is None
+        or ema50 is None
+    ):
+
+        return {
+            "status":
+                "UNKNOWN",
+
+            "score":
+                0,
+
+            "reason":
+                "EMA data unavailable",
+        }
+
+    if ema50 == 0:
+
+        return {
+            "status":
+                "UNKNOWN",
+
+            "score":
+                0,
+
+            "reason":
+                "Invalid EMA50",
+        }
+
+    difference = (
+        (
+            ema20
+            - ema50
+        )
+        / abs(ema50)
+    ) * 100
+
+    if abs(
+        difference
+    ) < 0.05:
+
+        return {
+            "status":
+                "NEUTRAL",
+
+            "score":
+                50,
+
+            "reason":
+                "EMA20 and EMA50 are close",
+        }
+
+    strength = min(
+        50,
+        abs(difference) * 100,
+    )
+
+    score = round(
+        50 + strength
+    )
+
+    if difference > 0:
+
+        return {
+            "status":
+                "BULLISH",
+
+            "score":
+                score,
+
+            "reason":
+                "EMA20 above EMA50",
+        }
+
+    return {
+        "status":
+            "BEARISH",
+
+        "score":
+            score,
+
+        "reason":
+            "EMA20 below EMA50",
+    }
+
+
+# =========================================================
+# WATCHLIST TRADE STATUS
+# =========================================================
+
+def get_trade_status(
+    result,
+):
+
+    price = to_float(
+        result.get(
+            "price"
+        )
+    )
+
+    entry = result.get(
+        "entry",
+        {},
+    ) or {}
+
+    entry_low = to_float(
+        entry.get(
+            "low"
+        )
+    )
+
+    entry_high = to_float(
+        entry.get(
+            "high"
+        )
+    )
+
+    quality = to_float(
+        result.get(
+            "quality_score"
+        )
+    )
+
+    rsi = to_float(
+        result.get(
+            "rsi"
+        )
+    )
+
+    risk_reward = to_float(
+        result.get(
+            "risk_reward"
+        )
+    )
+
+    signal = result.get(
+        "signal",
+        "WAIT",
+    )
+
+    # -----------------------------------------------------
+    # QUALITY
+    # -----------------------------------------------------
+
+    if (
+        quality is not None
+        and quality < MIN_QUALITY
+    ):
+
+        return {
+            "status":
+                "LOW_QUALITY",
+
+            "action":
+                "AVOID",
+
+            "reason":
+                "Quality below minimum",
+        }
+
+    # -----------------------------------------------------
+    # RSI
+    # -----------------------------------------------------
+
+    if rsi is not None:
+
+        if (
+            signal in BUY_SIGNALS
+            and rsi >= 75
+        ):
+
+            return {
+                "status":
+                    "RSI_OVERBOUGHT",
+
+                "action":
+                    "WAIT",
+
+                "reason":
+                    "RSI too high for BUY",
+            }
+
+        if (
+            signal in SELL_SIGNALS
+            and rsi <= 25
+        ):
+
+            return {
+                "status":
+                    "RSI_OVERSOLD",
+
+                "action":
+                    "WAIT",
+
+                "reason":
+                    "RSI too low for SELL",
+            }
+
+    # -----------------------------------------------------
+    # RISK / REWARD
+    # -----------------------------------------------------
+
+    if (
+        risk_reward is not None
+        and risk_reward < MIN_RISK_REWARD
+    ):
+
+        return {
+            "status":
+                "LOW_RISK_REWARD",
+
+            "action":
+                "AVOID",
+
+            "reason":
+                "Risk/reward below minimum",
+        }
+
+    # -----------------------------------------------------
+    # ENTRY
+    # -----------------------------------------------------
+
+    if (
+        price is not None
+        and entry_low is not None
+        and entry_high is not None
+    ):
+
+        if price < entry_low:
+
+            return {
+                "status":
+                    "BELOW_ENTRY",
+
+                "action":
+                    "WAIT_FOR_ENTRY",
+
+                "reason":
+                    "Price below entry zone",
+            }
+
+        if price > entry_high:
+
+            return {
+                "status":
+                    "ABOVE_ENTRY",
+
+                "action":
+                    "WAIT_FOR_ENTRY",
+
+                "reason":
+                    "Price above entry zone",
+            }
+
+        return {
+            "status":
+                "IN_ENTRY",
+
+            "action":
+                "READY",
+
+            "reason":
+                "Price inside entry zone",
+        }
+
+    return {
+        "status":
+            "WAIT",
+
+        "action":
+            "WAIT",
+
+        "reason":
+            "No actionable signal",
+    }
+
+
+# =========================================================
+# WATCHLIST ALERT DECISION
+# =========================================================
+
+def evaluate_watchlist_alert(
+    result,
+    regime,
+    trade,
+):
+
+    signal = result.get(
+        "signal",
+        "WAIT",
+    )
+
+    quality = to_float(
+        result.get(
+            "quality_score"
+        )
+    )
+
+    risk_reward = to_float(
+        result.get(
+            "risk_reward"
+        )
+    )
+
+    # -----------------------------------------------------
+    # SIGNAL
+    # -----------------------------------------------------
+
+    if signal not in (
+        BUY_SIGNALS
+        | SELL_SIGNALS
+    ):
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Signal not alertable",
+        }
+
+    # -----------------------------------------------------
+    # QUALITY
+    # -----------------------------------------------------
+
+    if quality is None:
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Quality unavailable",
+        }
+
+    if quality < MIN_QUALITY:
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Quality below threshold",
+        }
+
+    # -----------------------------------------------------
+    # RISK / REWARD
+    # -----------------------------------------------------
+
+    if risk_reward is None:
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Risk/reward unavailable",
+        }
+
+    if risk_reward < MIN_RISK_REWARD:
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Risk/reward below threshold",
+        }
+
+    # -----------------------------------------------------
+    # MARKET REGIME
+    # -----------------------------------------------------
+
+    if signal in BUY_SIGNALS:
+
+        if regime["status"] != "BULLISH":
+
+            return {
+                "allowed":
+                    False,
+
+                "reason":
+                    "BUY blocked by market regime",
+            }
+
+    if signal in SELL_SIGNALS:
+
+        if regime["status"] != "BEARISH":
+
+            return {
+                "allowed":
+                    False,
+
+                "reason":
+                    "SELL blocked by market regime",
+            }
+
+    # -----------------------------------------------------
+    # ENTRY
+    # -----------------------------------------------------
+
+    if trade["status"] != "IN_ENTRY":
+
+        return {
+            "allowed":
+                False,
+
+            "reason":
+                "Price not inside entry zone",
+        }
+
+    return {
+        "allowed":
+            True,
+
+        "reason":
+            "All conditions passed",
+    }
+
+
+# =========================================================
+# SEND WATCHLIST ALERT
+# =========================================================
+
+def send_watchlist_alert(
+    coin,
+    result,
+    regime,
+    trade,
+):
+
+    signal = result.get(
+        "signal"
+    )
+
+    quality = result.get(
+        "quality_score"
+    )
+
+    grade = result.get(
+        "quality_grade"
+    )
+
+    confidence = result.get(
+        "confidence"
+    )
+
+    rsi = result.get(
+        "rsi"
+    )
+
+    price = result.get(
+        "price"
+    )
+
+    entry = result.get(
+        "entry",
+        {},
+    ) or {}
+
+    stop_loss = result.get(
+        "stop_loss"
+    )
+
+    take_profit = result.get(
+        "take_profit",
+        {},
+    ) or {}
+
+    risk_reward = result.get(
+        "risk_reward"
+    )
+
+    reasons = result.get(
+        "reason",
+        []
+    )
+
+    reason_text = "\n".join(
+        f"• {x}"
+        for x in reasons
+    )
+
+    message = f"""
+🟢 BUY OPPORTUNITY
+
+━━━━━━━━━━━━━━━━━━
+{coin}
+━━━━━━━━━━━━━━━━━━
+
+📌 SIGNAL
+{signal}
+
+💰 PRICE
+{fmt(price)}
+
+📊 CONFIDENCE
+{confidence}%
+
+⭐ QUALITY
+{quality} ({grade})
+
+📈 MARKET
+{regime["status"]}
+
+📉 RSI
+{rsi}
+
+🎯 ENTRY
+{fmt(entry.get("low"))}
+-
+{fmt(entry.get("high"))}
+
+🛑 STOP LOSS
+{fmt(stop_loss)}
+
+🎯 TP1
+{fmt(take_profit.get("tp1"))}
+
+🎯 TP2
+{fmt(take_profit.get("tp2"))}
+
+⚖️ RISK / REWARD
+{risk_reward}
+
+🧠 REASON
+{reason_text}
+
+━━━━━━━━━━━━━━━━━━
+
+⚠️ MANUAL EXECUTION ONLY
+No automatic trading.
+"""
+
+    send_message(
+        message
+    )
+
+
+# =========================================================
+# PROCESS WATCHLIST ALERT
+# =========================================================
+
+def process_watchlist_alert(
+    coin,
+    result,
+):
+
+    regime = get_market_regime(
+        result
+    )
+
+    trade = get_trade_status(
+        result
+    )
+
+    decision = evaluate_watchlist_alert(
+        result,
+        regime,
+        trade,
+    )
+
+    if not decision["allowed"]:
+
+        return {
+            "sent":
+                False,
+
+            "reason":
+                decision["reason"],
+
+            "market_regime":
+                regime["status"],
+
+            "trade_status":
+                trade["status"],
+
+            "trade_action":
+                trade["action"],
+        }
+
+    signal = result.get(
+        "signal"
+    )
+
+    now = time.time()
+
+    with state_lock:
+
+        previous_signal = (
+            last_signal.get(
+                coin
+            )
+        )
+
+        previous_time = (
+            last_alert_time.get(
+                coin,
+                0
+            )
+        )
+
+    if previous_signal == signal:
+
+        elapsed = (
+            now
+            - previous_time
+        )
+
+        if elapsed < ALERT_COOLDOWN:
+
+            return {
+                "sent":
+                    False,
+
+                "reason":
+                    "Duplicate signal cooldown",
+
+                "cooldown_remaining":
+                    round(
+                        ALERT_COOLDOWN
+                        - elapsed,
+                        1,
+                    ),
+
+                "market_regime":
+                    regime["status"],
+
+                "trade_status":
+                    trade["status"],
+
+                "trade_action":
+                    trade["action"],
+            }
+
+    try:
+
+        send_watchlist_alert(
+            coin,
+            result,
+            regime,
+            trade,
         )
 
     except Exception as e:
@@ -576,148 +930,824 @@ def send_position_alert(
             "sent":
                 False,
 
-            "action":
-                action,
-
-            "priority":
-                priority,
-
             "reason":
                 f"Telegram error: {e}",
+
+            "market_regime":
+                regime["status"],
+
+            "trade_status":
+                trade["status"],
+
+            "trade_action":
+                trade["action"],
         }
 
-    _last_alert[
-        cooldown_key
-    ] = time.time()
+    with state_lock:
+
+        last_signal[
+            coin
+        ] = signal
+
+        last_alert_time[
+            coin
+        ] = now
 
     return {
         "sent":
             True,
 
-        "action":
-            action,
-
-        "priority":
-            priority,
-
         "reason":
-            decision.get(
-                "reason"
-            ),
+            "New signal",
+
+        "market_regime":
+            regime["status"],
+
+        "trade_status":
+            trade["status"],
+
+        "trade_action":
+            trade["action"],
     }
 
 
 # =========================================================
-# MONITOR ALL POSITIONS
+# WATCHLIST SCAN
 # =========================================================
 
-def monitor_portfolio_alerts(
-    positions,
-    force=False,
+def run_watchlist_scan():
+
+    results = []
+
+    alerts_sent = []
+
+    market = get_market()
+
+    # -----------------------------------------------------
+    # Normalize market response
+    # -----------------------------------------------------
+
+    if isinstance(
+        market,
+        dict,
+    ):
+
+        items = []
+
+        for coin, data in market.items():
+
+            if isinstance(
+                data,
+                dict,
+            ):
+
+                item = dict(
+                    data
+                )
+
+                item.setdefault(
+                    "coin",
+                    coin,
+                )
+
+                items.append(
+                    item
+                )
+
+    elif isinstance(
+        market,
+        list,
+    ):
+
+        items = market
+
+    else:
+
+        raise RuntimeError(
+            "Unsupported get_market() response"
+        )
+
+    # -----------------------------------------------------
+    # Analyze each coin
+    # -----------------------------------------------------
+
+    for item in items:
+
+        coin = item.get(
+            "coin"
+        )
+
+        if not coin:
+
+            continue
+
+        coin = str(
+            coin
+        ).upper()
+
+        try:
+
+            try:
+
+                result = analyze(
+                    item
+                )
+
+            except TypeError:
+
+                result = analyze(
+                    coin,
+                    item
+                )
+
+        except Exception as e:
+
+            results.append(
+                {
+                    "coin":
+                        coin,
+
+                    "status":
+                        "ERROR",
+
+                    "error":
+                        str(e),
+                }
+            )
+
+            continue
+
+        if result is None:
+
+            continue
+
+        result = dict(
+            result
+        )
+
+        result.setdefault(
+            "coin",
+            coin,
+        )
+
+        regime = get_market_regime(
+            result
+        )
+
+        trade = get_trade_status(
+            result
+        )
+
+        result[
+            "market_regime"
+        ] = regime
+
+        result[
+            "trade_status"
+        ] = trade[
+            "status"
+        ]
+
+        result[
+            "trade_action"
+        ] = trade[
+            "action"
+        ]
+
+        alert = process_watchlist_alert(
+            coin,
+            result,
+        )
+
+        result[
+            "alert_status"
+        ] = alert
+
+        results.append(
+            result
+        )
+
+        if alert.get(
+            "sent"
+        ):
+
+            alerts_sent.append(
+                coin
+            )
+
+    return {
+        "status":
+            "success",
+
+        "count":
+            len(results),
+
+        "alerts_sent":
+            alerts_sent,
+
+        "data":
+            results,
+    }
+
+
+# =========================================================
+# BUILD MARKET DATA FOR PORTFOLIO MONITOR
+# =========================================================
+
+def build_market_data(
+    watchlist_data,
 ):
+
+    market_data = {}
+
+    for item in watchlist_data:
+
+        if not isinstance(
+            item,
+            dict,
+        ):
+
+            continue
+
+        coin = str(
+            item.get(
+                "coin",
+                ""
+            )
+        ).upper()
+
+        if not coin:
+
+            continue
+
+        market_data[
+            coin
+        ] = item
+
+    return market_data
+
+
+# =========================================================
+# PORTFOLIO MONITOR
+#
+# IMPORTANT
+#
+# Uses portfolio_monitor.py v3.4.0
+#
+# run_portfolio_monitor(
+#     portfolio_response,
+#     market_data,
+#     rules
+# )
+#
+# =========================================================
+
+def run_portfolio_scan(
+    watchlist_data,
+):
+
+    # -----------------------------------------------------
+    # Get current positions
+    # -----------------------------------------------------
+
+    positions_response = get_positions()
+
+    if not isinstance(
+        positions_response,
+        dict,
+    ):
+
+        positions_response = {
+            "status":
+                "success",
+
+            "positions":
+                [],
+        }
+
+    positions = positions_response.get(
+        "positions",
+        []
+    )
 
     if not isinstance(
         positions,
         list,
     ):
 
-        return {
+        positions = []
+
+    # -----------------------------------------------------
+    # Market data
+    # -----------------------------------------------------
+
+    market_data = build_market_data(
+        watchlist_data
+    )
+
+    # -----------------------------------------------------
+    # Portfolio response expected
+    # by portfolio_monitor.py
+    # -----------------------------------------------------
+
+    portfolio_response = {
+        "status":
+            "success",
+
+        "account_type":
+            "READ_ONLY",
+
+        "positions":
+            positions,
+    }
+
+    # -----------------------------------------------------
+    # Run real portfolio monitor
+    # -----------------------------------------------------
+
+    monitored = run_portfolio_monitor(
+        portfolio_response=portfolio_response,
+
+        market_data=market_data,
+
+        rules={
+            "minimum_quality":
+                MIN_QUALITY,
+
+            "minimum_risk_reward":
+                MIN_RISK_REWARD,
+        },
+    )
+
+    # -----------------------------------------------------
+    # Return
+    # -----------------------------------------------------
+
+    return {
+        "status":
+            "success",
+
+        "account_type":
+            "READ_ONLY",
+
+        "position_count":
+            monitored.get(
+                "position_count",
+                len(positions),
+            ),
+
+        "high_priority_count":
+            monitored.get(
+                "high_priority_count",
+                0,
+            ),
+
+        "positions":
+            monitored.get(
+                "positions",
+                [],
+            ),
+
+        "high_priority":
+            monitored.get(
+                "high_priority",
+                [],
+            ),
+
+        "alerts":
+            monitored.get(
+                "alerts",
+                [],
+            ),
+
+        "read_only":
+            True,
+    }
+
+
+# =========================================================
+# FULL SCAN
+#
+# WATCHLIST ALWAYS RUNS
+# PORTFOLIO ALWAYS RUNS
+#
+# Portfolio empty != Watchlist stopped
+# =========================================================
+
+def run_full_scan():
+
+    global last_watchlist_result
+
+    global last_portfolio_result
+
+    errors = []
+
+    # =====================================================
+    # WATCHLIST
+    # =====================================================
+
+    try:
+
+        watchlist = run_watchlist_scan()
+
+    except Exception as e:
+
+        errors.append(
+            {
+                "module":
+                    "watchlist",
+
+                "error":
+                    str(e),
+            }
+        )
+
+        watchlist = {
             "status":
                 "error",
+
+            "count":
+                0,
+
+            "alerts_sent":
+                [],
+
+            "data":
+                [],
+
+            "error":
+                str(e),
+        }
+
+    watchlist_data = watchlist.get(
+        "data",
+        []
+    )
+
+    last_watchlist_result = (
+        watchlist_data
+    )
+
+    # =====================================================
+    # PORTFOLIO
+    #
+    # Runs even if portfolio is empty.
+    # =====================================================
+
+    try:
+
+        portfolio = run_portfolio_scan(
+            watchlist_data
+        )
+
+    except Exception as e:
+
+        errors.append(
+            {
+                "module":
+                    "portfolio",
+
+                "error":
+                    str(e),
+            }
+        )
+
+        portfolio = {
+            "status":
+                "error",
+
+            "account_type":
+                "READ_ONLY",
+
+            "position_count":
+                0,
+
+            "positions":
+                [],
+
+            "high_priority":
+                [],
+
+            "alerts":
+                [],
+
+            "error":
+                str(e),
+        }
+
+    last_portfolio_result = (
+        portfolio.get(
+            "positions",
+            []
+        )
+    )
+
+    return {
+        "status":
+            (
+                "success"
+                if not errors
+                else "partial_success"
+            ),
+
+        "watchlist":
+            watchlist,
+
+        "portfolio":
+            portfolio,
+
+        "errors":
+            errors,
+    }
+
+
+# =========================================================
+# MANUAL SCAN
+# =========================================================
+
+@app.get("/scan")
+def scan():
+
+    global last_scan_started
+
+    global last_scan_completed
+
+    global last_scan_duration
+
+    global last_scan_error
+
+    if not scan_lock.acquire(
+        blocking=False
+    ):
+
+        return JSONResponse(
+            status_code=409,
+
+            content={
+                "status":
+                    "busy",
+
+                "version":
+                    VERSION,
+
+                "message":
+                    "A scan is already running",
+            },
+        )
+
+    started = time.time()
+
+    last_scan_started = utc_now()
+
+    last_scan_error = None
+
+    try:
+
+        result = run_full_scan()
+
+        last_scan_completed = utc_now()
+
+        last_scan_duration = round(
+            time.time()
+            - started,
+            3,
+        )
+
+        return {
+            "status":
+                result[
+                    "status"
+                ],
 
             "version":
                 VERSION,
 
-            "message":
-                "positions must be a list",
+            "watchlist":
+                result[
+                    "watchlist"
+                ],
+
+            "portfolio":
+                result[
+                    "portfolio"
+                ],
+
+            "errors":
+                result[
+                    "errors"
+                ],
         }
 
-    results = []
+    except Exception as e:
 
-    alerts_sent = []
+        last_scan_error = str(e)
 
-    high_priority = []
+        return JSONResponse(
+            status_code=500,
 
-    for position in positions:
+            content={
+                "status":
+                    "error",
 
-        if not isinstance(
-            position,
-            dict,
-        ):
+                "version":
+                    VERSION,
 
-            continue
-
-        decision = classify_position(
-            position
+                "message":
+                    str(e),
+            },
         )
 
-        if decision.get(
-            "priority"
-        ) in {
-            "HIGH",
-            "CRITICAL",
-        }:
+    finally:
 
-            high_priority.append(
-                position.get(
-                    "asset",
-                    "UNKNOWN",
-                )
+        last_scan_completed = utc_now()
+
+        last_scan_duration = round(
+            time.time()
+            - started,
+            3,
+        )
+
+        scan_lock.release()
+
+
+# =========================================================
+# PORTFOLIO
+# =========================================================
+
+@app.get("/portfolio")
+def portfolio():
+
+    try:
+
+        result = get_portfolio()
+
+        return {
+            "status":
+                "success",
+
+            "version":
+                VERSION,
+
+            "source":
+                "Binance TH",
+
+            "account_mode":
+                "READ_ONLY",
+
+            "portfolio":
+                result,
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+            status_code=500,
+
+            content={
+                "status":
+                    "error",
+
+                "version":
+                    VERSION,
+
+                "source":
+                    "Binance TH",
+
+                "account_mode":
+                    "READ_ONLY",
+
+                "message":
+                    str(e),
+            },
+        )
+
+
+# =========================================================
+# POSITIONS
+# =========================================================
+
+@app.get("/positions")
+def positions():
+
+    try:
+
+        result = get_positions()
+
+        return {
+            "status":
+                "success",
+
+            "version":
+                VERSION,
+
+            "source":
+                "Binance TH",
+
+            "account_mode":
+                "READ_ONLY",
+
+            "positions":
+                result,
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+            status_code=500,
+
+            content={
+                "status":
+                    "error",
+
+                "version":
+                    VERSION,
+
+                "source":
+                    "Binance TH",
+
+                "account_mode":
+                    "READ_ONLY",
+
+                "message":
+                    str(e),
+            },
+        )
+
+
+# =========================================================
+# PORTFOLIO MONITOR
+#
+# Manual test endpoint
+# =========================================================
+
+@app.get("/portfolio-monitor")
+def portfolio_monitor():
+
+    try:
+
+        # Run watchlist first so that
+        # portfolio monitor receives
+        # current market data.
+
+        watchlist = run_watchlist_scan()
+
+        portfolio = run_portfolio_scan(
+            watchlist.get(
+                "data",
+                []
             )
-
-        result = send_position_alert(
-            position,
-            force=force,
         )
 
-        asset = position.get(
-            "asset",
-            "UNKNOWN",
+        return {
+            "status":
+                "success",
+
+            "version":
+                VERSION,
+
+            "source":
+                "Binance TH",
+
+            "account_mode":
+                "READ_ONLY",
+
+            "portfolio_monitor":
+                portfolio,
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+            status_code=500,
+
+            content={
+                "status":
+                    "error",
+
+                "version":
+                    VERSION,
+
+                "source":
+                    "Binance TH",
+
+                "account_mode":
+                    "READ_ONLY",
+
+                "stage":
+                    "portfolio_monitor",
+
+                "message":
+                    str(e),
+            },
         )
 
-        results.append(
-            {
-                "asset":
-                    asset,
 
-                "action":
-                    result.get(
-                        "action"
-                    ),
+# =========================================================
+# STATUS
+# =========================================================
 
-                "priority":
-                    result.get(
-                        "priority",
-                        decision.get(
-                            "priority"
-                        ),
-                    ),
-
-                "sent":
-                    result.get(
-                        "sent",
-                        False,
-                    ),
-
-                "reason":
-                    result.get(
-                        "reason"
-                    ),
-
-                "cooldown_remaining":
-                    result.get(
-                        "cooldown_remaining"
-                    ),
-            }
-        )
-
-        if result.get(
-            "sent"
-        ):
-
-            alerts_sent.append(
-                asset
-            )
+@app.get("/status")
+def status():
 
     return {
         "status":
@@ -726,64 +1756,207 @@ def monitor_portfolio_alerts(
         "version":
             VERSION,
 
-        "position_count":
-            len(positions),
+        "watchlist_count":
+            len(
+                last_watchlist_result
+            ),
 
-        "high_priority":
-            high_priority,
+        "portfolio_position_count":
+            len(
+                last_portfolio_result
+            ),
 
-        "alerts_sent":
-            alerts_sent,
+        "last_scan_started":
+            last_scan_started,
 
-        "results":
-            results,
+        "last_scan_completed":
+            last_scan_completed,
+
+        "last_scan_duration_seconds":
+            last_scan_duration,
+
+        "last_scan_error":
+            last_scan_error,
     }
 
 
 # =========================================================
-# TEST ALERT
+# HEALTH
 # =========================================================
 
-def test_portfolio_alert():
+@app.get("/health")
+def health():
 
-    position = {
-        "asset":
-            "BTC",
+    return {
+        "status":
+            "healthy",
 
-        "symbol":
-            "BTC/THB",
+        "service":
+            "Crypto Alert",
 
-        "quantity":
-            0.01,
+        "version":
+            VERSION,
 
-        "average_entry":
-            2000000,
+        "rules": {
+            "minimum_quality":
+                MIN_QUALITY,
 
-        "current_price":
-            2250000,
+            "minimum_risk_reward":
+                MIN_RISK_REWARD,
 
-        "unrealized_pnl_percent":
-            12.5,
+            "alert_cooldown_seconds":
+                ALERT_COOLDOWN,
 
-        "unrealized_pnl":
-            2500,
-
-        "market_value":
-            22500,
-
-        "market_regime": {
-            "status":
-                "BULLISH",
+            "scan_interval_seconds":
+                SCAN_INTERVAL,
         },
 
-        "quality_score":
-            82,
+        "scheduler": {
+            "started_at":
+                scheduler_started_at,
 
-        "quality_grade":
-            "B",
+            "last_scan":
+                last_scan_completed,
+
+            "last_scan_duration_seconds":
+                last_scan_duration,
+
+            "last_error":
+                last_scan_error,
+        },
+
+        "modules": {
+            "watchlist":
+                "ACTIVE",
+
+            "portfolio_monitor":
+                "ACTIVE",
+
+            "binance":
+                "READ_ONLY",
+
+            "telegram":
+                "ACTIVE",
+
+            "automatic_trading":
+                "DISABLED",
+        },
     }
 
-    return send_position_alert(
-        position,
-        force=True,
+
+# =========================================================
+# SCHEDULER
+# =========================================================
+
+def scheduler_loop():
+
+    global scheduler_started_at
+
+    global last_scan_started
+
+    global last_scan_completed
+
+    global last_scan_duration
+
+    global last_scan_error
+
+    scheduler_started_at = utc_now()
+
+    print(
+        f"[Scheduler] started "
+        f"version={VERSION} "
+        f"interval={SCAN_INTERVAL}s"
     )
+
+    while True:
+
+        started = time.time()
+
+        # -------------------------------------------------
+        # Prevent overlapping scans
+        # -------------------------------------------------
+
+        if scan_lock.acquire(
+            blocking=False
+        ):
+
+            try:
+
+                last_scan_started = utc_now()
+
+                last_scan_error = None
+
+                result = run_full_scan()
+
+                last_scan_completed = utc_now()
+
+                last_scan_duration = round(
+                    time.time()
+                    - started,
+                    3,
+                )
+
+                print(
+                    "[Scheduler] scan complete "
+                    f"duration="
+                    f"{last_scan_duration}s "
+                    f"status="
+                    f"{result['status']}"
+                )
+
+            except Exception as e:
+
+                last_scan_error = str(e)
+
+                print(
+                    "[Scheduler] scan error:",
+                    e,
+                )
+
+            finally:
+
+                last_scan_completed = utc_now()
+
+                last_scan_duration = round(
+                    time.time()
+                    - started,
+                    3,
+                )
+
+                scan_lock.release()
+
+        else:
+
+            print(
+                "[Scheduler] scan skipped "
+                "because another scan is running"
+            )
+
+        # -------------------------------------------------
+        # 5 minutes
+        # -------------------------------------------------
+
+        time.sleep(
+            SCAN_INTERVAL
+        )
+
+
+# =========================================================
+# START SCHEDULER
+# =========================================================
+
+@app.on_event(
+    "startup"
+)
+def startup_event():
+
+    thread = threading.Thread(
+        target=scheduler_loop,
+
+        daemon=True,
+
+        name=
+            "crypto-alert-scheduler",
+    )
+
+    thread.start()
