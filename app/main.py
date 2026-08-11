@@ -4,8 +4,13 @@ from fastapi.responses import JSONResponse
 from app.crypto.price import get_market
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
+
 from app.crypto.binance_account import get_portfolio
 from app.crypto.binance_position import get_positions
+
+from app.crypto.portfolio_monitor import (
+    run_portfolio_monitor,
+)
 
 import threading
 import time
@@ -13,49 +18,61 @@ from datetime import datetime, timezone
 
 
 # =========================================================
-# CRYPTO ALERT V3.3.1
+# CRYPTO ALERT
+# Version 3.4.1
 #
-# TWO PARALLEL SYSTEMS
+# SYSTEM
 #
 # 1. WATCHLIST
 #    - Always scans for opportunities
 #    - Works even when portfolio is empty
 #
 # 2. PORTFOLIO MONITOR
-#    - Always monitors assets actually held
+#    - Monitors assets actually held
+#    - Uses portfolio_monitor.py
 #    - Binance TH READ ONLY
+#
+# 3. TELEGRAM
+#    - Sends important alerts
+#    - Cooldown protection
+#
+# 4. SCHEDULER
+#    - Automatic scan every 5 minutes
 #
 # NO AUTOMATIC TRADING
 # =========================================================
 
 
-VERSION = "3.3.1"
+VERSION = "3.4.1"
 
 SCAN_INTERVAL = 300
+
 ALERT_COOLDOWN = 1800
 
 MIN_QUALITY = 70
+
 MIN_RISK_REWARD = 1.0
 
 
 BUY_SIGNALS = {
     "BUY SETUP",
-    "STRONG BUY"
+    "STRONG BUY",
 }
+
 
 SELL_SIGNALS = {
     "SELL WATCH",
-    "STRONG SELL"
+    "STRONG SELL",
 }
 
 
 # =========================================================
-# FASTAPI
+# APP
 # =========================================================
 
 app = FastAPI(
     title="Crypto Alert",
-    version=VERSION
+    version=VERSION,
 )
 
 
@@ -64,22 +81,25 @@ app = FastAPI(
 # =========================================================
 
 last_signal = {}
-last_alert_time = {}
 
-last_position_action = {}
-last_position_alert_time = {}
+last_alert_time = {}
 
 scheduler_started_at = None
 
 last_scan_started = None
+
 last_scan_completed = None
+
 last_scan_duration = None
+
 last_scan_error = None
 
 last_watchlist_result = []
+
 last_portfolio_result = []
 
 state_lock = threading.Lock()
+
 scan_lock = threading.Lock()
 
 
@@ -95,12 +115,12 @@ def utc_now():
 
 
 # =========================================================
-# SAFE NUMBER
+# SAFE FLOAT
 # =========================================================
 
 def to_float(
     value,
-    default=None
+    default=None,
 ):
 
     try:
@@ -109,7 +129,7 @@ def to_float(
 
     except (
         TypeError,
-        ValueError
+        ValueError,
     ):
 
         return default
@@ -121,7 +141,7 @@ def to_float(
 
 def fmt(
     value,
-    digits=4
+    digits=4,
 ):
 
     number = to_float(
@@ -187,6 +207,7 @@ BULLISH
 ⚠️ TEST ALERT ONLY
 
 This is a Telegram connectivity test.
+
 This is NOT a real trading signal.
 
 No automatic trading is performed.
@@ -212,7 +233,7 @@ No automatic trading is performed.
                 True,
 
             "message":
-                "Test alert sent"
+                "Test alert sent",
         }
 
     except Exception as e:
@@ -234,8 +255,8 @@ No automatic trading is performed.
                     False,
 
                 "message":
-                    str(e)
-            }
+                    str(e),
+            },
         )
 
 
@@ -244,7 +265,7 @@ No automatic trading is performed.
 # =========================================================
 
 def get_market_regime(
-    result
+    result,
 ):
 
     ema20 = to_float(
@@ -272,7 +293,7 @@ def get_market_regime(
                 0,
 
             "reason":
-                "EMA data unavailable"
+                "EMA data unavailable",
         }
 
     if ema50 == 0:
@@ -285,7 +306,7 @@ def get_market_regime(
                 0,
 
             "reason":
-                "Invalid EMA50"
+                "Invalid EMA50",
         }
 
     difference = (
@@ -308,12 +329,12 @@ def get_market_regime(
                 50,
 
             "reason":
-                "EMA20 and EMA50 are close"
+                "EMA20 and EMA50 are close",
         }
 
     strength = min(
         50,
-        abs(difference) * 100
+        abs(difference) * 100,
     )
 
     score = round(
@@ -330,7 +351,7 @@ def get_market_regime(
                 score,
 
             "reason":
-                "EMA20 above EMA50"
+                "EMA20 above EMA50",
         }
 
     return {
@@ -341,7 +362,7 @@ def get_market_regime(
             score,
 
         "reason":
-            "EMA20 below EMA50"
+            "EMA20 below EMA50",
     }
 
 
@@ -350,13 +371,8 @@ def get_market_regime(
 # =========================================================
 
 def get_trade_status(
-    result
+    result,
 ):
-
-    signal = result.get(
-        "signal",
-        "WAIT"
-    )
 
     price = to_float(
         result.get(
@@ -366,7 +382,7 @@ def get_trade_status(
 
     entry = result.get(
         "entry",
-        {}
+        {},
     ) or {}
 
     entry_low = to_float(
@@ -399,24 +415,30 @@ def get_trade_status(
         )
     )
 
+    signal = result.get(
+        "signal",
+        "WAIT",
+    )
+
     # -----------------------------------------------------
     # QUALITY
     # -----------------------------------------------------
 
-    if quality is not None:
+    if (
+        quality is not None
+        and quality < MIN_QUALITY
+    ):
 
-        if quality < MIN_QUALITY:
+        return {
+            "status":
+                "LOW_QUALITY",
 
-            return {
-                "status":
-                    "LOW_QUALITY",
+            "action":
+                "AVOID",
 
-                "action":
-                    "AVOID",
-
-                "reason":
-                    "Quality below minimum"
-            }
+            "reason":
+                "Quality below minimum",
+        }
 
     # -----------------------------------------------------
     # RSI
@@ -437,7 +459,7 @@ def get_trade_status(
                     "WAIT",
 
                 "reason":
-                    "RSI too high for BUY"
+                    "RSI too high for BUY",
             }
 
         if (
@@ -453,27 +475,28 @@ def get_trade_status(
                     "WAIT",
 
                 "reason":
-                    "RSI too low for SELL"
+                    "RSI too low for SELL",
             }
 
     # -----------------------------------------------------
     # RISK / REWARD
     # -----------------------------------------------------
 
-    if risk_reward is not None:
+    if (
+        risk_reward is not None
+        and risk_reward < MIN_RISK_REWARD
+    ):
 
-        if risk_reward < MIN_RISK_REWARD:
+        return {
+            "status":
+                "LOW_RISK_REWARD",
 
-            return {
-                "status":
-                    "LOW_RISK_REWARD",
+            "action":
+                "AVOID",
 
-                "action":
-                    "AVOID",
-
-                "reason":
-                    "Risk/reward below minimum"
-            }
+            "reason":
+                "Risk/reward below minimum",
+        }
 
     # -----------------------------------------------------
     # ENTRY
@@ -495,7 +518,7 @@ def get_trade_status(
                     "WAIT_FOR_ENTRY",
 
                 "reason":
-                    "Price below entry zone"
+                    "Price below entry zone",
             }
 
         if price > entry_high:
@@ -508,7 +531,7 @@ def get_trade_status(
                     "WAIT_FOR_ENTRY",
 
                 "reason":
-                    "Price above entry zone"
+                    "Price above entry zone",
             }
 
         return {
@@ -519,7 +542,7 @@ def get_trade_status(
                 "READY",
 
             "reason":
-                "Price inside entry zone"
+                "Price inside entry zone",
         }
 
     return {
@@ -530,7 +553,7 @@ def get_trade_status(
             "WAIT",
 
         "reason":
-            "No actionable signal"
+            "No actionable signal",
     }
 
 
@@ -541,12 +564,12 @@ def get_trade_status(
 def evaluate_watchlist_alert(
     result,
     regime,
-    trade
+    trade,
 ):
 
     signal = result.get(
         "signal",
-        "WAIT"
+        "WAIT",
     )
 
     quality = to_float(
@@ -555,7 +578,7 @@ def evaluate_watchlist_alert(
         )
     )
 
-    rr = to_float(
+    risk_reward = to_float(
         result.get(
             "risk_reward"
         )
@@ -575,7 +598,7 @@ def evaluate_watchlist_alert(
                 False,
 
             "reason":
-                "Signal not alertable"
+                "Signal not alertable",
         }
 
     # -----------------------------------------------------
@@ -589,7 +612,7 @@ def evaluate_watchlist_alert(
                 False,
 
             "reason":
-                "Quality unavailable"
+                "Quality unavailable",
         }
 
     if quality < MIN_QUALITY:
@@ -599,31 +622,31 @@ def evaluate_watchlist_alert(
                 False,
 
             "reason":
-                "Quality below threshold"
+                "Quality below threshold",
         }
 
     # -----------------------------------------------------
     # RISK / REWARD
     # -----------------------------------------------------
 
-    if rr is None:
+    if risk_reward is None:
 
         return {
             "allowed":
                 False,
 
             "reason":
-                "Risk/reward unavailable"
+                "Risk/reward unavailable",
         }
 
-    if rr < MIN_RISK_REWARD:
+    if risk_reward < MIN_RISK_REWARD:
 
         return {
             "allowed":
                 False,
 
             "reason":
-                "Risk/reward below threshold"
+                "Risk/reward below threshold",
         }
 
     # -----------------------------------------------------
@@ -639,7 +662,7 @@ def evaluate_watchlist_alert(
                     False,
 
                 "reason":
-                    "BUY blocked by market regime"
+                    "BUY blocked by market regime",
             }
 
     if signal in SELL_SIGNALS:
@@ -651,7 +674,7 @@ def evaluate_watchlist_alert(
                     False,
 
                 "reason":
-                    "SELL blocked by market regime"
+                    "SELL blocked by market regime",
             }
 
     # -----------------------------------------------------
@@ -665,7 +688,7 @@ def evaluate_watchlist_alert(
                 False,
 
             "reason":
-                "Price not inside entry zone"
+                "Price not inside entry zone",
         }
 
     return {
@@ -673,19 +696,19 @@ def evaluate_watchlist_alert(
             True,
 
         "reason":
-            "All conditions passed"
+            "All conditions passed",
     }
 
 
 # =========================================================
-# WATCHLIST TELEGRAM
+# SEND WATCHLIST ALERT
 # =========================================================
 
 def send_watchlist_alert(
     coin,
     result,
     regime,
-    trade
+    trade,
 ):
 
     signal = result.get(
@@ -714,7 +737,7 @@ def send_watchlist_alert(
 
     entry = result.get(
         "entry",
-        {}
+        {},
     ) or {}
 
     stop_loss = result.get(
@@ -723,10 +746,10 @@ def send_watchlist_alert(
 
     take_profit = result.get(
         "take_profit",
-        {}
+        {},
     ) or {}
 
-    rr = result.get(
+    risk_reward = result.get(
         "risk_reward"
     )
 
@@ -738,7 +761,7 @@ def send_watchlist_alert(
     reason_text = "\n".join(
         f"• {x}"
         for x in reasons
-    ) or "• N/A"
+    )
 
     message = f"""
 🟢 BUY OPPORTUNITY
@@ -780,7 +803,7 @@ def send_watchlist_alert(
 {fmt(take_profit.get("tp2"))}
 
 ⚖️ RISK / REWARD
-{rr}
+{risk_reward}
 
 🧠 REASON
 {reason_text}
@@ -802,7 +825,7 @@ No automatic trading.
 
 def process_watchlist_alert(
     coin,
-    result
+    result,
 ):
 
     regime = get_market_regime(
@@ -816,7 +839,7 @@ def process_watchlist_alert(
     decision = evaluate_watchlist_alert(
         result,
         regime,
-        trade
+        trade,
     )
 
     if not decision["allowed"]:
@@ -835,7 +858,7 @@ def process_watchlist_alert(
                 trade["status"],
 
             "trade_action":
-                trade["action"]
+                trade["action"],
         }
 
     signal = result.get(
@@ -879,7 +902,7 @@ def process_watchlist_alert(
                     round(
                         ALERT_COOLDOWN
                         - elapsed,
-                        1
+                        1,
                     ),
 
                 "market_regime":
@@ -889,7 +912,7 @@ def process_watchlist_alert(
                     trade["status"],
 
                 "trade_action":
-                    trade["action"]
+                    trade["action"],
             }
 
     try:
@@ -898,7 +921,7 @@ def process_watchlist_alert(
             coin,
             result,
             regime,
-            trade
+            trade,
         )
 
     except Exception as e:
@@ -917,7 +940,7 @@ def process_watchlist_alert(
                 trade["status"],
 
             "trade_action":
-                trade["action"]
+                trade["action"],
         }
 
     with state_lock:
@@ -944,432 +967,7 @@ def process_watchlist_alert(
             trade["status"],
 
         "trade_action":
-            trade["action"]
-    }
-
-
-# =========================================================
-# POSITION ACTION ENGINE
-#
-# READ ONLY
-# NO BUY
-# NO SELL
-# =========================================================
-
-def evaluate_position(
-    position
-):
-
-    asset = position.get(
-        "asset"
-    )
-
-    entry = to_float(
-        position.get(
-            "average_entry"
-        )
-    )
-
-    current = to_float(
-        position.get(
-            "current_price"
-        )
-    )
-
-    pnl = to_float(
-        position.get(
-            "unrealized_pnl_percent"
-        )
-    )
-
-    # -----------------------------------------------------
-    # UNKNOWN COST BASIS
-    # -----------------------------------------------------
-
-    if entry is None:
-
-        return {
-            "action":
-                "MONITOR",
-
-            "status":
-                "COST_BASIS_UNKNOWN",
-
-            "reason":
-                "Cannot determine reliable entry price"
-        }
-
-    # -----------------------------------------------------
-    # PRICE UNAVAILABLE
-    # -----------------------------------------------------
-
-    if current is None:
-
-        return {
-            "action":
-                "MONITOR",
-
-            "status":
-                "PRICE_UNAVAILABLE",
-
-            "reason":
-                "Current market price unavailable"
-        }
-
-    # -----------------------------------------------------
-    # CALCULATE P/L
-    # -----------------------------------------------------
-
-    if pnl is None:
-
-        if entry > 0:
-
-            pnl = (
-                (
-                    current
-                    - entry
-                )
-                / entry
-            ) * 100
-
-        else:
-
-            pnl = 0
-
-    # -----------------------------------------------------
-    # LOSS >= 5%
-    # -----------------------------------------------------
-
-    if pnl <= -5:
-
-        return {
-            "action":
-                "REVIEW_EXIT",
-
-            "status":
-                "STOP_RISK",
-
-            "reason":
-                "Position is down 5% or more",
-
-            "pnl_percent":
-                round(
-                    pnl,
-                    4
-                )
-        }
-
-    # -----------------------------------------------------
-    # PROFIT >= 10%
-    # -----------------------------------------------------
-
-    if pnl >= 10:
-
-        return {
-            "action":
-                "REVIEW_TAKE_PROFIT",
-
-            "status":
-                "PROFIT_10_PLUS",
-
-            "reason":
-                "Position profit is 10% or more",
-
-            "pnl_percent":
-                round(
-                    pnl,
-                    4
-                )
-        }
-
-    # -----------------------------------------------------
-    # PROFIT >= 5%
-    # -----------------------------------------------------
-
-    if pnl >= 5:
-
-        return {
-            "action":
-                "REVIEW_TAKE_PROFIT",
-
-            "status":
-                "PROFIT_5_PLUS",
-
-            "reason":
-                "Position profit is 5% or more",
-
-            "pnl_percent":
-                round(
-                    pnl,
-                    4
-                )
-        }
-
-    # -----------------------------------------------------
-    # NORMAL PROFIT
-    # -----------------------------------------------------
-
-    if pnl > 0:
-
-        return {
-            "action":
-                "HOLD",
-
-            "status":
-                "PROFIT",
-
-            "reason":
-                "Position remains profitable",
-
-            "pnl_percent":
-                round(
-                    pnl,
-                    4
-                )
-        }
-
-    # -----------------------------------------------------
-    # NORMAL LOSS
-    # -----------------------------------------------------
-
-    return {
-        "action":
-            "HOLD",
-
-        "status":
-            "LOSS",
-
-        "reason":
-            "Position remains within monitoring range",
-
-        "pnl_percent":
-            round(
-                pnl,
-                4
-            )
-    }
-
-
-# =========================================================
-# POSITION TELEGRAM
-# =========================================================
-
-def send_position_alert(
-    position,
-    action
-):
-
-    asset = position.get(
-        "asset"
-    )
-
-    quantity = position.get(
-        "quantity"
-    )
-
-    entry = position.get(
-        "average_entry"
-    )
-
-    current = position.get(
-        "current_price"
-    )
-
-    pnl = action.get(
-        "pnl_percent"
-    )
-
-    status = action.get(
-        "status"
-    )
-
-    reason = action.get(
-        "reason"
-    )
-
-    if action["action"] == "REVIEW_EXIT":
-
-        title = (
-            "🔴 POSITION EXIT REVIEW"
-        )
-
-    elif action["action"] == "REVIEW_TAKE_PROFIT":
-
-        title = (
-            "🟡 TAKE PROFIT REVIEW"
-        )
-
-    else:
-
-        title = (
-            "📊 POSITION UPDATE"
-        )
-
-    message = f"""
-{title}
-
-━━━━━━━━━━━━━━━━━━
-{asset}
-━━━━━━━━━━━━━━━━━━
-
-📦 QUANTITY
-{quantity}
-
-💰 AVERAGE ENTRY
-{fmt(entry)}
-
-📈 CURRENT PRICE
-{fmt(current)}
-
-📊 P/L
-{fmt(pnl, 2)}%
-
-🎯 ACTION
-{action["action"]}
-
-📌 STATUS
-{status}
-
-🧠 REASON
-{reason}
-
-━━━━━━━━━━━━━━━━━━
-
-⚠️ MANUAL EXECUTION ONLY
-No automatic trading.
-"""
-
-    send_message(
-        message
-    )
-
-
-# =========================================================
-# PROCESS POSITION
-# =========================================================
-
-def process_position(
-    position
-):
-
-    asset = position.get(
-        "asset"
-    )
-
-    if not asset:
-
-        return {
-            "sent":
-                False,
-
-            "reason":
-                "Missing asset"
-        }
-
-    action = evaluate_position(
-        position
-    )
-
-    action_name = action[
-        "action"
-    ]
-
-    # -----------------------------------------------------
-    # HOLD is not sent every 5 minutes.
-    # -----------------------------------------------------
-
-    if action_name == "HOLD":
-
-        return {
-            **action,
-
-            "sent":
-                False,
-
-            "reason":
-                "Normal monitoring"
-        }
-
-    now = time.time()
-
-    with state_lock:
-
-        previous_action = (
-            last_position_action.get(
-                asset
-            )
-        )
-
-        previous_time = (
-            last_position_alert_time.get(
-                asset,
-                0
-            )
-        )
-
-    if previous_action == action_name:
-
-        elapsed = (
-            now
-            - previous_time
-        )
-
-        if elapsed < ALERT_COOLDOWN:
-
-            return {
-                **action,
-
-                "sent":
-                    False,
-
-                "reason":
-                    "Duplicate position alert cooldown",
-
-                "cooldown_remaining":
-                    round(
-                        ALERT_COOLDOWN
-                        - elapsed,
-                        1
-                    )
-            }
-
-    try:
-
-        send_position_alert(
-            position,
-            action
-        )
-
-    except Exception as e:
-
-        return {
-            **action,
-
-            "sent":
-                False,
-
-            "reason":
-                f"Telegram error: {e}"
-        }
-
-    with state_lock:
-
-        last_position_action[
-            asset
-        ] = action_name
-
-        last_position_alert_time[
-            asset
-        ] = now
-
-    return {
-        **action,
-
-        "sent":
-            True,
-
-        "reason":
-            "Position action alert sent"
+            trade["action"],
     }
 
 
@@ -1381,13 +979,17 @@ def run_watchlist_scan():
 
     results = []
 
-    alerts = []
+    alerts_sent = []
 
     market = get_market()
 
+    # -----------------------------------------------------
+    # Normalize market response
+    # -----------------------------------------------------
+
     if isinstance(
         market,
-        dict
+        dict,
     ):
 
         items = []
@@ -1396,7 +998,7 @@ def run_watchlist_scan():
 
             if isinstance(
                 data,
-                dict
+                dict,
             ):
 
                 item = dict(
@@ -1405,7 +1007,7 @@ def run_watchlist_scan():
 
                 item.setdefault(
                     "coin",
-                    coin
+                    coin,
                 )
 
                 items.append(
@@ -1414,7 +1016,7 @@ def run_watchlist_scan():
 
     elif isinstance(
         market,
-        list
+        list,
     ):
 
         items = market
@@ -1424,6 +1026,10 @@ def run_watchlist_scan():
         raise RuntimeError(
             "Unsupported get_market() response"
         )
+
+    # -----------------------------------------------------
+    # Analyze each coin
+    # -----------------------------------------------------
 
     for item in items:
 
@@ -1441,35 +1047,18 @@ def run_watchlist_scan():
 
         try:
 
-            result = analyze(
-                item
-            )
-
-        except TypeError:
-
             try:
+
+                result = analyze(
+                    item
+                )
+
+            except TypeError:
 
                 result = analyze(
                     coin,
                     item
                 )
-
-            except Exception as e:
-
-                results.append(
-                    {
-                        "coin":
-                            coin,
-
-                        "status":
-                            "ERROR",
-
-                        "error":
-                            str(e)
-                    }
-                )
-
-                continue
 
         except Exception as e:
 
@@ -1482,7 +1071,7 @@ def run_watchlist_scan():
                         "ERROR",
 
                     "error":
-                        str(e)
+                        str(e),
                 }
             )
 
@@ -1498,7 +1087,7 @@ def run_watchlist_scan():
 
         result.setdefault(
             "coin",
-            coin
+            coin,
         )
 
         regime = get_market_regime(
@@ -1527,7 +1116,7 @@ def run_watchlist_scan():
 
         alert = process_watchlist_alert(
             coin,
-            result
+            result,
         )
 
         result[
@@ -1542,7 +1131,7 @@ def run_watchlist_scan():
             "sent"
         ):
 
-            alerts.append(
+            alerts_sent.append(
                 coin
             )
 
@@ -1554,71 +1143,145 @@ def run_watchlist_scan():
             len(results),
 
         "alerts_sent":
-            alerts,
+            alerts_sent,
 
         "data":
-            results
+            results,
     }
+
+
+# =========================================================
+# BUILD MARKET DATA FOR PORTFOLIO MONITOR
+# =========================================================
+
+def build_market_data(
+    watchlist_data,
+):
+
+    market_data = {}
+
+    for item in watchlist_data:
+
+        if not isinstance(
+            item,
+            dict,
+        ):
+
+            continue
+
+        coin = str(
+            item.get(
+                "coin",
+                ""
+            )
+        ).upper()
+
+        if not coin:
+
+            continue
+
+        market_data[
+            coin
+        ] = item
+
+    return market_data
 
 
 # =========================================================
 # PORTFOLIO MONITOR
 #
-# IMPORTANT:
-# This function uses get_positions()
-# directly.
+# IMPORTANT
 #
-# We DO NOT import another function with
-# the same name from portfolio_monitor.py.
+# Uses portfolio_monitor.py v3.4.0
+#
+# run_portfolio_monitor(
+#     portfolio_response,
+#     market_data,
+#     rules
+# )
+#
 # =========================================================
 
-def run_portfolio_scan():
+def run_portfolio_scan(
+    watchlist_data,
+):
 
-    result = get_positions()
+    # -----------------------------------------------------
+    # Get current positions
+    # -----------------------------------------------------
 
-    positions = result.get(
+    positions_response = get_positions()
+
+    if not isinstance(
+        positions_response,
+        dict,
+    ):
+
+        positions_response = {
+            "status":
+                "success",
+
+            "positions":
+                [],
+        }
+
+    positions = positions_response.get(
         "positions",
         []
     )
 
-    monitored = []
+    if not isinstance(
+        positions,
+        list,
+    ):
 
-    alerts = []
+        positions = []
 
-    for position in positions:
+    # -----------------------------------------------------
+    # Market data
+    # -----------------------------------------------------
 
-        if not isinstance(
-            position,
-            dict
-        ):
+    market_data = build_market_data(
+        watchlist_data
+    )
 
-            continue
+    # -----------------------------------------------------
+    # Portfolio response expected
+    # by portfolio_monitor.py
+    # -----------------------------------------------------
 
-        action = process_position(
-            position
-        )
+    portfolio_response = {
+        "status":
+            "success",
 
-        record = dict(
-            position
-        )
+        "account_type":
+            "READ_ONLY",
 
-        record[
-            "monitor"
-        ] = action
+        "positions":
+            positions,
+    }
 
-        monitored.append(
-            record
-        )
+    # -----------------------------------------------------
+    # Run real portfolio monitor
+    # -----------------------------------------------------
 
-        if action.get(
-            "sent"
-        ):
+    monitored = run_portfolio_monitor(
+        portfolio_response=portfolio_response,
 
-            alerts.append(
-                position.get(
-                    "asset"
-                )
-            )
+        market_data=market_data,
+
+        rules={
+            "minimum_quality":
+                MIN_QUALITY,
+
+            "minimum_risk_reward":
+                MIN_RISK_REWARD,
+        },
+    )
+
+    # -----------------------------------------------------
+    # Return
+    # -----------------------------------------------------
 
     return {
         "status":
@@ -1628,29 +1291,54 @@ def run_portfolio_scan():
             "READ_ONLY",
 
         "position_count":
-            len(monitored),
+            monitored.get(
+                "position_count",
+                len(positions),
+            ),
 
-        "alerts_sent":
-            alerts,
+        "high_priority_count":
+            monitored.get(
+                "high_priority_count",
+                0,
+            ),
 
         "positions":
-            monitored
+            monitored.get(
+                "positions",
+                [],
+            ),
+
+        "high_priority":
+            monitored.get(
+                "high_priority",
+                [],
+            ),
+
+        "alerts":
+            monitored.get(
+                "alerts",
+                [],
+            ),
+
+        "read_only":
+            True,
     }
 
 
 # =========================================================
 # FULL SCAN
 #
-# WATCHLIST and PORTFOLIO run independently.
+# WATCHLIST ALWAYS RUNS
+# PORTFOLIO ALWAYS RUNS
+#
+# Portfolio empty != Watchlist stopped
 # =========================================================
 
 def run_full_scan():
 
     global last_watchlist_result
-    global last_portfolio_result
 
-    watchlist = None
-    portfolio = None
+    global last_portfolio_result
 
     errors = []
 
@@ -1660,9 +1348,7 @@ def run_full_scan():
 
     try:
 
-        watchlist = (
-            run_watchlist_scan()
-        )
+        watchlist = run_watchlist_scan()
 
     except Exception as e:
 
@@ -1672,7 +1358,7 @@ def run_full_scan():
                     "watchlist",
 
                 "error":
-                    str(e)
+                    str(e),
             }
         )
 
@@ -1680,23 +1366,38 @@ def run_full_scan():
             "status":
                 "error",
 
-            "error":
-                str(e),
+            "count":
+                0,
+
+            "alerts_sent":
+                [],
 
             "data":
-                []
+                [],
+
+            "error":
+                str(e),
         }
+
+    watchlist_data = watchlist.get(
+        "data",
+        []
+    )
+
+    last_watchlist_result = (
+        watchlist_data
+    )
 
     # =====================================================
     # PORTFOLIO
     #
-    # Runs even if Watchlist fails.
+    # Runs even if portfolio is empty.
     # =====================================================
 
     try:
 
-        portfolio = (
-            run_portfolio_scan()
+        portfolio = run_portfolio_scan(
+            watchlist_data
         )
 
     except Exception as e:
@@ -1707,7 +1408,7 @@ def run_full_scan():
                     "portfolio",
 
                 "error":
-                    str(e)
+                    str(e),
             }
         )
 
@@ -1715,19 +1416,24 @@ def run_full_scan():
             "status":
                 "error",
 
-            "error":
-                str(e),
+            "account_type":
+                "READ_ONLY",
+
+            "position_count":
+                0,
 
             "positions":
-                []
-        }
+                [],
 
-    last_watchlist_result = (
-        watchlist.get(
-            "data",
-            []
-        )
-    )
+            "high_priority":
+                [],
+
+            "alerts":
+                [],
+
+            "error":
+                str(e),
+        }
 
     last_portfolio_result = (
         portfolio.get(
@@ -1751,7 +1457,7 @@ def run_full_scan():
             portfolio,
 
         "errors":
-            errors
+            errors,
     }
 
 
@@ -1763,8 +1469,11 @@ def run_full_scan():
 def scan():
 
     global last_scan_started
+
     global last_scan_completed
+
     global last_scan_duration
+
     global last_scan_error
 
     if not scan_lock.acquire(
@@ -1782,8 +1491,8 @@ def scan():
                     VERSION,
 
                 "message":
-                    "A scan is already running"
-            }
+                    "A scan is already running",
+            },
         )
 
     started = time.time()
@@ -1801,7 +1510,7 @@ def scan():
         last_scan_duration = round(
             time.time()
             - started,
-            3
+            3,
         )
 
         return {
@@ -1812,9 +1521,6 @@ def scan():
 
             "version":
                 VERSION,
-
-            "scan_interval_seconds":
-                SCAN_INTERVAL,
 
             "watchlist":
                 result[
@@ -1829,7 +1535,7 @@ def scan():
             "errors":
                 result[
                     "errors"
-                ]
+                ],
         }
 
     except Exception as e:
@@ -1847,8 +1553,8 @@ def scan():
                     VERSION,
 
                 "message":
-                    str(e)
-            }
+                    str(e),
+            },
         )
 
     finally:
@@ -1858,7 +1564,7 @@ def scan():
         last_scan_duration = round(
             time.time()
             - started,
-            3
+            3,
         )
 
         scan_lock.release()
@@ -1889,7 +1595,7 @@ def portfolio():
                 "READ_ONLY",
 
             "portfolio":
-                result
+                result,
         }
 
     except Exception as e:
@@ -1911,8 +1617,8 @@ def portfolio():
                     "READ_ONLY",
 
                 "message":
-                    str(e)
-            }
+                    str(e),
+            },
         )
 
 
@@ -1941,7 +1647,7 @@ def positions():
                 "READ_ONLY",
 
             "positions":
-                result
+                result,
         }
 
     except Exception as e:
@@ -1963,15 +1669,15 @@ def positions():
                     "READ_ONLY",
 
                 "message":
-                    str(e)
-            }
+                    str(e),
+            },
         )
 
 
 # =========================================================
 # PORTFOLIO MONITOR
 #
-# Manual endpoint
+# Manual test endpoint
 # =========================================================
 
 @app.get("/portfolio-monitor")
@@ -1979,7 +1685,18 @@ def portfolio_monitor():
 
     try:
 
-        result = run_portfolio_scan()
+        # Run watchlist first so that
+        # portfolio monitor receives
+        # current market data.
+
+        watchlist = run_watchlist_scan()
+
+        portfolio = run_portfolio_scan(
+            watchlist.get(
+                "data",
+                []
+            )
+        )
 
         return {
             "status":
@@ -1994,8 +1711,8 @@ def portfolio_monitor():
             "account_mode":
                 "READ_ONLY",
 
-            "monitor":
-                result
+            "portfolio_monitor":
+                portfolio,
         }
 
     except Exception as e:
@@ -2020,13 +1737,13 @@ def portfolio_monitor():
                     "portfolio_monitor",
 
                 "message":
-                    str(e)
-            }
+                    str(e),
+            },
         )
 
 
 # =========================================================
-# LAST RESULTS
+# STATUS
 # =========================================================
 
 @app.get("/status")
@@ -2059,7 +1776,7 @@ def status():
             last_scan_duration,
 
         "last_scan_error":
-            last_scan_error
+            last_scan_error,
     }
 
 
@@ -2091,7 +1808,7 @@ def health():
                 ALERT_COOLDOWN,
 
             "scan_interval_seconds":
-                SCAN_INTERVAL
+                SCAN_INTERVAL,
         },
 
         "scheduler": {
@@ -2105,7 +1822,7 @@ def health():
                 last_scan_duration,
 
             "last_error":
-                last_scan_error
+                last_scan_error,
         },
 
         "modules": {
@@ -2122,8 +1839,8 @@ def health():
                 "ACTIVE",
 
             "automatic_trading":
-                "DISABLED"
-        }
+                "DISABLED",
+        },
     }
 
 
@@ -2134,9 +1851,13 @@ def health():
 def scheduler_loop():
 
     global scheduler_started_at
+
     global last_scan_started
+
     global last_scan_completed
+
     global last_scan_duration
+
     global last_scan_error
 
     scheduler_started_at = utc_now()
@@ -2150,6 +1871,10 @@ def scheduler_loop():
     while True:
 
         started = time.time()
+
+        # -------------------------------------------------
+        # Prevent overlapping scans
+        # -------------------------------------------------
 
         if scan_lock.acquire(
             blocking=False
@@ -2168,7 +1893,7 @@ def scheduler_loop():
                 last_scan_duration = round(
                     time.time()
                     - started,
-                    3
+                    3,
                 )
 
                 print(
@@ -2185,7 +1910,7 @@ def scheduler_loop():
 
                 print(
                     "[Scheduler] scan error:",
-                    e
+                    e,
                 )
 
             finally:
@@ -2195,7 +1920,7 @@ def scheduler_loop():
                 last_scan_duration = round(
                     time.time()
                     - started,
-                    3
+                    3,
                 )
 
                 scan_lock.release()
@@ -2207,6 +1932,10 @@ def scheduler_loop():
                 "because another scan is running"
             )
 
+        # -------------------------------------------------
+        # 5 minutes
+        # -------------------------------------------------
+
         time.sleep(
             SCAN_INTERVAL
         )
@@ -2216,7 +1945,9 @@ def scheduler_loop():
 # START SCHEDULER
 # =========================================================
 
-@app.on_event("startup")
+@app.on_event(
+    "startup"
+)
 def startup_event():
 
     thread = threading.Thread(
@@ -2225,7 +1956,7 @@ def startup_event():
         daemon=True,
 
         name=
-            "crypto-alert-scheduler"
+            "crypto-alert-scheduler",
     )
 
     thread.start()
