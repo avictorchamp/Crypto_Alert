@@ -12,6 +12,10 @@ from app.crypto.portfolio_monitor import (
     run_portfolio_monitor,
 )
 
+from app.crypto.portfolio_alert import (
+    monitor_portfolio_alerts,
+)
+
 import threading
 import time
 from datetime import datetime, timezone
@@ -19,31 +23,38 @@ from datetime import datetime, timezone
 
 # =========================================================
 # CRYPTO ALERT
-# Version 3.4.1
+# Version 3.5.0
 #
 # SYSTEM
 #
 # 1. WATCHLIST
-#    - Always scans for opportunities
+#    - Always scans market opportunities
 #    - Works even when portfolio is empty
 #
-# 2. PORTFOLIO MONITOR
-#    - Monitors assets actually held
-#    - Uses portfolio_monitor.py
-#    - Binance TH READ ONLY
+# 2. PORTFOLIO
+#    - Reads Binance TH portfolio
+#    - READ ONLY
+#    - Monitors held assets
 #
-# 3. TELEGRAM
-#    - Sends important alerts
+# 3. PORTFOLIO ALERT
+#    - HOLD
+#    - TAKE_PROFIT_REVIEW
+#    - PROTECT
+#    - EXIT_REVIEW
+#
+# 4. TELEGRAM
+#    - Watchlist alerts
+#    - Portfolio alerts
 #    - Cooldown protection
 #
-# 4. SCHEDULER
+# 5. SCHEDULER
 #    - Automatic scan every 5 minutes
 #
 # NO AUTOMATIC TRADING
 # =========================================================
 
 
-VERSION = "3.4.1"
+VERSION = "3.5.0"
 
 SCAN_INTERVAL = 300
 
@@ -97,6 +108,8 @@ last_scan_error = None
 last_watchlist_result = []
 
 last_portfolio_result = []
+
+last_portfolio_alert_result = {}
 
 state_lock = threading.Lock()
 
@@ -584,10 +597,6 @@ def evaluate_watchlist_alert(
         )
     )
 
-    # -----------------------------------------------------
-    # SIGNAL
-    # -----------------------------------------------------
-
     if signal not in (
         BUY_SIGNALS
         | SELL_SIGNALS
@@ -600,10 +609,6 @@ def evaluate_watchlist_alert(
             "reason":
                 "Signal not alertable",
         }
-
-    # -----------------------------------------------------
-    # QUALITY
-    # -----------------------------------------------------
 
     if quality is None:
 
@@ -625,10 +630,6 @@ def evaluate_watchlist_alert(
                 "Quality below threshold",
         }
 
-    # -----------------------------------------------------
-    # RISK / REWARD
-    # -----------------------------------------------------
-
     if risk_reward is None:
 
         return {
@@ -648,10 +649,6 @@ def evaluate_watchlist_alert(
             "reason":
                 "Risk/reward below threshold",
         }
-
-    # -----------------------------------------------------
-    # MARKET REGIME
-    # -----------------------------------------------------
 
     if signal in BUY_SIGNALS:
 
@@ -676,10 +673,6 @@ def evaluate_watchlist_alert(
                 "reason":
                     "SELL blocked by market regime",
             }
-
-    # -----------------------------------------------------
-    # ENTRY
-    # -----------------------------------------------------
 
     if trade["status"] != "IN_ENTRY":
 
@@ -983,10 +976,6 @@ def run_watchlist_scan():
 
     market = get_market()
 
-    # -----------------------------------------------------
-    # Normalize market response
-    # -----------------------------------------------------
-
     if isinstance(
         market,
         dict,
@@ -1026,10 +1015,6 @@ def run_watchlist_scan():
         raise RuntimeError(
             "Unsupported get_market() response"
         )
-
-    # -----------------------------------------------------
-    # Analyze each coin
-    # -----------------------------------------------------
 
     for item in items:
 
@@ -1151,7 +1136,7 @@ def run_watchlist_scan():
 
 
 # =========================================================
-# BUILD MARKET DATA FOR PORTFOLIO MONITOR
+# BUILD MARKET DATA
 # =========================================================
 
 def build_market_data(
@@ -1188,27 +1173,14 @@ def build_market_data(
 
 
 # =========================================================
-# PORTFOLIO MONITOR
-#
-# IMPORTANT
-#
-# Uses portfolio_monitor.py v3.4.0
-#
-# run_portfolio_monitor(
-#     portfolio_response,
-#     market_data,
-#     rules
-# )
-#
+# PORTFOLIO SCAN
 # =========================================================
 
 def run_portfolio_scan(
     watchlist_data,
 ):
 
-    # -----------------------------------------------------
-    # Get current positions
-    # -----------------------------------------------------
+    global last_portfolio_alert_result
 
     positions_response = get_positions()
 
@@ -1237,18 +1209,9 @@ def run_portfolio_scan(
 
         positions = []
 
-    # -----------------------------------------------------
-    # Market data
-    # -----------------------------------------------------
-
     market_data = build_market_data(
         watchlist_data
     )
-
-    # -----------------------------------------------------
-    # Portfolio response expected
-    # by portfolio_monitor.py
-    # -----------------------------------------------------
 
     portfolio_response = {
         "status":
@@ -1262,7 +1225,7 @@ def run_portfolio_scan(
     }
 
     # -----------------------------------------------------
-    # Run real portfolio monitor
+    # Existing portfolio monitor
     # -----------------------------------------------------
 
     monitored = run_portfolio_monitor(
@@ -1279,13 +1242,70 @@ def run_portfolio_scan(
         },
     )
 
+    if not isinstance(
+        monitored,
+        dict,
+    ):
+
+        monitored = {
+            "status":
+                "success",
+
+            "positions":
+                positions,
+
+            "position_count":
+                len(positions),
+        }
+
+    monitored_positions = monitored.get(
+        "positions",
+        []
+    )
+
+    if not isinstance(
+        monitored_positions,
+        list,
+    ):
+
+        monitored_positions = positions
+
     # -----------------------------------------------------
-    # Return
+    # Portfolio Telegram alerts
     # -----------------------------------------------------
+
+    try:
+
+        portfolio_alerts = monitor_portfolio_alerts(
+            monitored_positions
+        )
+
+    except Exception as e:
+
+        portfolio_alerts = {
+            "status":
+                "error",
+
+            "message":
+                str(e),
+
+            "alerts_sent":
+                [],
+
+            "results":
+                [],
+        }
+
+    last_portfolio_alert_result = (
+        portfolio_alerts
+    )
 
     return {
         "status":
-            "success",
+            monitored.get(
+                "status",
+                "success",
+            ),
 
         "account_type":
             "READ_ONLY",
@@ -1293,7 +1313,9 @@ def run_portfolio_scan(
         "position_count":
             monitored.get(
                 "position_count",
-                len(positions),
+                len(
+                    monitored_positions
+                ),
             ),
 
         "high_priority_count":
@@ -1303,10 +1325,7 @@ def run_portfolio_scan(
             ),
 
         "positions":
-            monitored.get(
-                "positions",
-                [],
-            ),
+            monitored_positions,
 
         "high_priority":
             monitored.get(
@@ -1314,11 +1333,14 @@ def run_portfolio_scan(
                 [],
             ),
 
-        "alerts":
+        "monitor_alerts":
             monitored.get(
                 "alerts",
                 [],
             ),
+
+        "telegram_alerts":
+            portfolio_alerts,
 
         "read_only":
             True,
@@ -1330,8 +1352,6 @@ def run_portfolio_scan(
 #
 # WATCHLIST ALWAYS RUNS
 # PORTFOLIO ALWAYS RUNS
-#
-# Portfolio empty != Watchlist stopped
 # =========================================================
 
 def run_full_scan():
@@ -1390,8 +1410,6 @@ def run_full_scan():
 
     # =====================================================
     # PORTFOLIO
-    #
-    # Runs even if portfolio is empty.
     # =====================================================
 
     try:
@@ -1428,8 +1446,17 @@ def run_full_scan():
             "high_priority":
                 [],
 
-            "alerts":
+            "monitor_alerts":
                 [],
+
+            "telegram_alerts":
+                {
+                    "status":
+                        "error",
+
+                    "message":
+                        str(e),
+                },
 
             "error":
                 str(e),
@@ -1676,18 +1703,12 @@ def positions():
 
 # =========================================================
 # PORTFOLIO MONITOR
-#
-# Manual test endpoint
 # =========================================================
 
 @app.get("/portfolio-monitor")
 def portfolio_monitor():
 
     try:
-
-        # Run watchlist first so that
-        # portfolio monitor receives
-        # current market data.
 
         watchlist = run_watchlist_scan()
 
@@ -1743,6 +1764,97 @@ def portfolio_monitor():
 
 
 # =========================================================
+# PORTFOLIO ALERT TEST
+# =========================================================
+
+@app.get("/test-portfolio-alert")
+def test_portfolio_alert():
+
+    test_position = {
+        "asset":
+            "BTC",
+
+        "symbol":
+            "BTC/THB",
+
+        "quantity":
+            0.01,
+
+        "average_entry":
+            2000000,
+
+        "current_price":
+            2250000,
+
+        "unrealized_pnl_percent":
+            12.5,
+
+        "unrealized_pnl":
+            2500,
+
+        "market_value":
+            22500,
+
+        "market_regime": {
+            "status":
+                "BULLISH",
+        },
+
+        "quality_score":
+            82,
+
+        "quality_grade":
+            "B",
+    }
+
+    try:
+
+        result = monitor_portfolio_alerts(
+            [
+                test_position
+            ],
+            force=True,
+        )
+
+        return {
+            "status":
+                "success",
+
+            "version":
+                VERSION,
+
+            "test":
+                True,
+
+            "result":
+                result,
+
+            "message":
+                "Portfolio test alert sent",
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+            status_code=500,
+
+            content={
+                "status":
+                    "error",
+
+                "version":
+                    VERSION,
+
+                "test":
+                    True,
+
+                "message":
+                    str(e),
+            },
+        )
+
+
+# =========================================================
 # STATUS
 # =========================================================
 
@@ -1765,6 +1877,9 @@ def status():
             len(
                 last_portfolio_result
             ),
+
+        "portfolio_alert_status":
+            last_portfolio_alert_result,
 
         "last_scan_started":
             last_scan_started,
@@ -1832,6 +1947,9 @@ def health():
             "portfolio_monitor":
                 "ACTIVE",
 
+            "portfolio_alert":
+                "ACTIVE",
+
             "binance":
                 "READ_ONLY",
 
@@ -1871,10 +1989,6 @@ def scheduler_loop():
     while True:
 
         started = time.time()
-
-        # -------------------------------------------------
-        # Prevent overlapping scans
-        # -------------------------------------------------
 
         if scan_lock.acquire(
             blocking=False
@@ -1931,10 +2045,6 @@ def scheduler_loop():
                 "[Scheduler] scan skipped "
                 "because another scan is running"
             )
-
-        # -------------------------------------------------
-        # 5 minutes
-        # -------------------------------------------------
 
         time.sleep(
             SCAN_INTERVAL
