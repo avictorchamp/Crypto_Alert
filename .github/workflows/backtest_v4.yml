@@ -1,0 +1,37 @@
+name: Crypto Alert Backtest V4
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'backtest_v4.py'
+      - '.github/workflows/backtest_v4.yml'
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run V4 backtest
+        run: python backtest_v4.py --months 12
+      - name: Commit result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backtest_v4_results.json
+          git diff --cached --quiet || git commit -m 'Add V4 behavior-based backtest results'
+          git push
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-alert-v4-backtest
+          path: backtest_v4_results.json
