@@ -1,18 +1,23 @@
 """
-Crypto Alert Backtest Engine v1.1.0
+Crypto Alert Backtest Engine v2.0.0
 
-READ-ONLY research tool. Does not access Binance account APIs and never places orders.
+READ-ONLY research tool. No Binance account access. No trading.
 
-Compares:
-  A) CURRENT: production-style RSI/EMA/support/resistance entry logic
-  B) SCORE: hard risk filters + entry score + reversal confirmation
+Purpose:
+  1) Reproduce the current production-style entry logic as closely as practical.
+  2) Test a stricter V2 idea: bullish regime + pullback/support + RSI recovery +
+     price confirmation + minimum R/R.
+  3) Use fixed-risk position sizing so one bad sequence cannot mathematically
+     compound the portfolio to -100% simply because many signals overlap.
+  4) Permit only ONE open position per coin and a maximum number of concurrent
+     positions for the portfolio-level report.
 
-Historical research data comes from Coinbase Exchange public 1H candles.
-This avoids Binance global API geographic restrictions in GitHub Actions.
+Historical data: Coinbase Exchange public 1H candles.
+Costs: fee and slippage on both entry and exit.
 
 Usage:
     python backtest.py --months 12
-    python backtest.py --months 24 --coins BTC ETH XRP SOL BNB ADA DOGE LINK AVAX
+    python backtest.py --months 24
 """
 
 import argparse
@@ -31,9 +36,12 @@ DEFAULT_COINS = ["BTC", "ETH", "XRP", "SOL", "BNB", "ADA", "DOGE", "LINK", "AVAX
 FEE_RATE = 0.001
 SLIPPAGE_RATE = 0.0005
 INITIAL_EQUITY = 1000.0
+RISK_PER_TRADE = 0.01
+MAX_CONCURRENT_POSITIONS = 3
 MAX_HOLD_BARS = 72
-MIN_RR = 1.0
-MIN_QUALITY = 70.0
+MIN_CURRENT_QUALITY = 70.0
+MIN_V2_QUALITY = 70.0
+MIN_RR = 1.5
 REQUEST_TIMEOUT = 30
 
 
@@ -49,6 +57,7 @@ class Trade:
     target: float
     r_multiple: float
     pnl_pct: float
+    equity_pnl_pct: float
     bars: int
     reason: str
 
@@ -58,14 +67,13 @@ def utc_from_ms(ms):
 
 
 def fetch_klines(coin, months):
-    """Download 1H candles from Coinbase in <=300-candle chunks."""
     product = f"{coin}-USD"
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=months * 30.4375)
     cursor = start
     rows = []
     session = requests.Session()
-    session.headers.update({"User-Agent": "Crypto-Alert-Backtest/1.1"})
+    session.headers.update({"User-Agent": "Crypto-Alert-Backtest/2.0"})
 
     while cursor < end:
         chunk_end = min(cursor + timedelta(seconds=GRANULARITY * MAX_CANDLES_PER_REQUEST), end)
@@ -84,8 +92,7 @@ def fetch_klines(coin, months):
             cursor = chunk_end
         else:
             max_ts = max(int(x[0]) for x in batch)
-            next_cursor = datetime.fromtimestamp(max_ts + GRANULARITY, tz=timezone.utc)
-            cursor = max(chunk_end, next_cursor)
+            cursor = max(chunk_end, datetime.fromtimestamp(max_ts + GRANULARITY, tz=timezone.utc))
         time.sleep(0.12)
 
     dedup = {int(x[0]): x for x in rows}
@@ -129,9 +136,9 @@ def rsi(values, period=14):
 
 
 def indicators(history):
-    closes = [x["close"] for x in history]
-    if len(closes) < 50:
+    if len(history) < 50:
         return None
+    closes = [x["close"] for x in history]
     price = closes[-1]
     e20 = ema(closes, 20)
     e50 = ema(closes, 50)
@@ -165,101 +172,140 @@ def quality(ind):
     return score
 
 
-def current_strategy(ind):
+def current_signal(history):
+    ind = indicators(history)
+    if not ind:
+        return False, ind, 0.0, "NO_DATA"
     q = quality(ind)
     in_entry = ind["entry_low"] <= ind["price"] <= ind["entry_high"]
     buy = (
         ind["ema20"] > ind["ema50"]
         and ind["price"] <= ind["support"] * 1.01
         and ind["rsi"] < 65
-        and ind["rr"] >= MIN_RR
-        and q >= MIN_QUALITY
+        and ind["rr"] >= 1.0
+        and q >= MIN_CURRENT_QUALITY
         and in_entry
     )
-    return buy, q
+    return buy, ind, q, "CURRENT"
 
 
-def score_strategy(ind, history):
-    score = 0
-    if ind["rsi"] <= 30: score += 20
-    elif ind["rsi"] <= 35: score += 12
-    if ind["price"] <= ind["support"] * 1.01: score += 20
-    if ind["entry_low"] <= ind["price"] <= ind["entry_high"]: score += 20
-    if ind["ema20"] > ind["ema50"]:
-        score += 15
-    else:
-        prev = indicators(history[:-1])
-        if prev and ind["ema20"] > prev["ema20"] and ind["ema50"] >= prev["ema50"]:
-            score += 12
-    closes = [x["close"] for x in history]
-    if len(closes) >= 6 and closes[-1] > closes[-2] > closes[-3]: score += 15
-    if ind["rr"] >= 2: score += 10
-    elif ind["rr"] >= 1: score += 5
+def v2_signal(history):
+    """Stricter, testable confirmation model.
+
+    Hard filters:
+      - bullish EMA20 > EMA50
+      - price at/near support and inside the entry zone
+      - R/R >= 1.5
+      - quality >= 70
+
+    Confirmation:
+      - RSI was <= 35 on the previous candle and is recovering, OR
+        price has two consecutive rising closes while RSI is recovering
+      - current close > previous close
+      - current close >= EMA20 is NOT required; pullbacks below EMA20 are allowed
+        while EMA20 remains above EMA50.
+    """
+    if len(history) < 51:
+        return False, None, 0.0, "NO_DATA"
+    ind = indicators(history)
+    prev = indicators(history[:-1])
+    prev2 = indicators(history[:-2])
+    if not ind or not prev or not prev2:
+        return False, ind, 0.0, "NO_DATA"
+
     q = quality(ind)
-    return q >= MIN_QUALITY and ind["rr"] >= MIN_RR and score >= 70, q, score
+    closes = [x["close"] for x in history]
+    bullish_regime = ind["ema20"] > ind["ema50"]
+    near_support = ind["price"] <= ind["support"] * 1.01
+    in_entry = ind["entry_low"] <= ind["price"] <= ind["entry_high"]
+    rr_ok = ind["rr"] >= MIN_RR
+    price_confirmation = ind["price"] > prev["price"]
+    rsi_recovery = ind["rsi"] > prev["rsi"] and (prev["rsi"] <= 35 or prev2["rsi"] <= 35)
+    two_up = closes[-1] > closes[-2] > closes[-3] and ind["rsi"] > prev["rsi"]
+    confirmation = price_confirmation and (rsi_recovery or two_up)
+
+    buy = (
+        bullish_regime and near_support and in_entry and rr_ok
+        and q >= MIN_V2_QUALITY and confirmation
+    )
+    return buy, ind, q, "V2"
 
 
-def simulate(candles, coin, strategy_name):
+def build_trade(candles, i, coin, strategy_name, ind):
+    entry_bar = candles[i + 1]
+    entry = entry_bar["open"] * (1 + SLIPPAGE_RATE)
+    stop = ind["stop"]
+    target = ind["target"]
+    risk = entry - stop
+    if risk <= 0 or target <= entry:
+        return None
+    exit_index = min(i + 1 + MAX_HOLD_BARS, len(candles) - 1)
+    exit_price = None
+    reason = "TIME"
+    for j in range(i + 1, exit_index + 1):
+        bar = candles[j]
+        # Conservative ordering when both levels are touched in one candle:
+        # assume SL happened first.
+        if bar["low"] <= stop:
+            exit_price = stop * (1 - SLIPPAGE_RATE)
+            exit_index = j
+            reason = "SL"
+            break
+        if bar["high"] >= target:
+            exit_price = target * (1 - SLIPPAGE_RATE)
+            exit_index = j
+            reason = "TP"
+            break
+    if exit_price is None:
+        exit_price = candles[exit_index]["close"] * (1 - SLIPPAGE_RATE)
+    gross = (exit_price - entry) / entry
+    net = gross - 2 * FEE_RATE
+    r = (exit_price - entry) / risk
+    return Trade(
+        coin=coin,
+        strategy=strategy_name,
+        entry_time=entry_bar["time"],
+        exit_time=candles[exit_index]["time"],
+        entry=entry,
+        exit=exit_price,
+        stop=stop,
+        target=target,
+        r_multiple=r,
+        pnl_pct=net * 100,
+        equity_pnl_pct=0.0,
+        bars=exit_index - (i + 1),
+        reason=reason,
+    ), exit_index
+
+
+def simulate_coin(candles, coin, strategy_name):
     trades = []
     i = 50
     while i < len(candles) - 2:
         history = candles[:i + 1]
-        ind = indicators(history)
-        if not ind:
+        if strategy_name == "CURRENT":
+            signal, ind, _, _ = current_signal(history)
+        else:
+            signal, ind, _, _ = v2_signal(history)
+        if not signal:
             i += 1
             continue
-        result = current_strategy(ind) if strategy_name == "CURRENT" else score_strategy(ind, history)
-        if not result[0]:
+        built = build_trade(candles, i, coin, strategy_name, ind)
+        if not built:
             i += 1
             continue
-
-        entry_bar = candles[i + 1]
-        entry = entry_bar["open"] * (1 + SLIPPAGE_RATE)
-        stop = ind["stop"]
-        target = ind["target"]
-        risk = entry - stop
-        if risk <= 0 or target <= entry:
-            i += 1
-            continue
-
-        exit_index = min(i + 1 + MAX_HOLD_BARS, len(candles) - 1)
-        exit_price = None
-        exit_time = None
-        reason = "TIME"
-        for j in range(i + 1, exit_index + 1):
-            bar = candles[j]
-            if bar["low"] <= stop:
-                exit_price = stop * (1 - SLIPPAGE_RATE)
-                exit_time = bar["time"]
-                reason = "SL"
-                exit_index = j
-                break
-            if bar["high"] >= target:
-                exit_price = target * (1 - SLIPPAGE_RATE)
-                exit_time = bar["time"]
-                reason = "TP"
-                exit_index = j
-                break
-        if exit_price is None:
-            bar = candles[exit_index]
-            exit_price = bar["close"] * (1 - SLIPPAGE_RATE)
-            exit_time = bar["time"]
-
-        gross = (exit_price - entry) / entry
-        net = gross - (2 * FEE_RATE)
-        r = (exit_price - entry) / risk
-        trades.append(Trade(
-            coin, strategy_name, entry_bar["time"], exit_time, entry, exit_price,
-            stop, target, r, net * 100, exit_index - (i + 1), reason
-        ))
+        trade, exit_index = built
+        trades.append(trade)
+        # No overlapping position in the same coin.
         i = exit_index + 1
     return trades
 
 
 def metrics(trades):
     if not trades:
-        return {"trades": 0, "win_rate_pct": 0, "profit_factor": 0, "expectancy_pct": 0,
-                "average_r": 0, "max_drawdown_pct": 0, "net_return_pct": 0}
+        return {"trades": 0, "win_rate_pct": 0.0, "profit_factor": 0.0,
+                "expectancy_pct": 0.0, "average_r": 0.0, "max_drawdown_pct": 0.0,
+                "net_return_pct": 0.0}
     wins = [t for t in trades if t.pnl_pct > 0]
     losses = [t for t in trades if t.pnl_pct <= 0]
     gross_win = sum(t.pnl_pct for t in wins)
@@ -269,7 +315,7 @@ def metrics(trades):
     peak = equity
     max_dd = 0.0
     for t in trades:
-        equity *= 1 + t.pnl_pct / 100
+        equity *= 1 + (RISK_PER_TRADE * t.r_multiple)
         peak = max(peak, equity)
         max_dd = max(max_dd, (peak - equity) / peak * 100)
     return {
@@ -283,25 +329,49 @@ def metrics(trades):
     }
 
 
+def portfolio_metrics(all_trades):
+    """Portfolio-level event simulation with max 3 concurrent positions.
+
+    Signals are generated independently for each coin. Trades are processed in
+    chronological order. If 3 positions are already open at an entry time, the
+    new signal is skipped. This is a conservative capacity constraint.
+    """
+    events = sorted(all_trades, key=lambda t: (t.entry_time, t.coin))
+    active = []
+    selected = []
+    for t in events:
+        active = [x for x in active if x.exit_time > t.entry_time]
+        if len(active) < MAX_CONCURRENT_POSITIONS:
+            active.append(t)
+            selected.append(t)
+    return metrics(selected), selected
+
+
 def print_report(results, months):
-    print("\n=== CRYPTO ALERT BACKTEST v1.1.0 ===")
+    print("\n=== CRYPTO ALERT BACKTEST v2.0.0 ===")
     print(f"Period: approximately {months} months | Timeframe: 1H")
     print("Data: Coinbase Exchange public candles (USD pairs)")
     print(f"Fees: {FEE_RATE*100:.2f}% per side | Slippage: {SLIPPAGE_RATE*100:.2f}% per side")
-    if not results:
-        print("NO RESULTS: historical data could not be downloaded.")
-        return
-    aggregate = {}
+    print(f"Risk/trade: {RISK_PER_TRADE*100:.1f}% | Max concurrent positions: {MAX_CONCURRENT_POSITIONS}")
+
+    aggregate = {"CURRENT": [], "V2": []}
     for coin, by_strategy in results.items():
         print(f"\n--- {coin} ---")
-        for name, data in by_strategy.items():
-            m = data["metrics"]
-            aggregate.setdefault(name, []).extend(data["trades"])
-            print(f"{name:>8}: trades={m['trades']:<4} win={m['win_rate_pct']:>6}% PF={m['profit_factor']} expectancy={m['expectancy_pct']}% avgR={m['average_r']} DD={m['max_drawdown_pct']}% return={m['net_return_pct']}%")
-    print("\n=== AGGREGATE TRADE POOL ===")
-    for name, trades in aggregate.items():
-        print(f"{name:>8}: {metrics(trades)}")
-    print("\nInterpretation: do NOT deploy from one metric alone. Require enough trades, PF > 1 after costs, acceptable drawdown, and stability across coins/regimes.")
+        for name in ("CURRENT", "V2"):
+            trades = by_strategy[name]
+            aggregate[name].extend(trades)
+            print(f"{name:>8}: {metrics(trades)}")
+
+    print("\n=== TRADE-POOL COMPARISON ===")
+    for name in ("CURRENT", "V2"):
+        print(f"{name:>8}: {metrics(aggregate[name])}")
+
+    print("\n=== PORTFOLIO CAPACITY COMPARISON ===")
+    for name in ("CURRENT", "V2"):
+        pm, selected = portfolio_metrics(aggregate[name])
+        print(f"{name:>8}: {pm} | selected_trades={len(selected)}")
+
+    print("\nDecision rule: do NOT deploy unless PF > 1 after costs, expectancy > 0, drawdown is acceptable, and performance is stable across coins/regimes.")
 
 
 def main():
@@ -309,6 +379,7 @@ def main():
     parser.add_argument("--months", type=int, default=12)
     parser.add_argument("--coins", nargs="+", default=DEFAULT_COINS)
     args = parser.parse_args()
+
     results = {}
     for coin in args.coins:
         coin = coin.upper()
@@ -318,12 +389,13 @@ def main():
             if len(candles) < 100:
                 print(f"{coin}: insufficient candles ({len(candles)})")
                 continue
-            a = simulate(candles, coin, "CURRENT")
-            b = simulate(candles, coin, "SCORE")
-            results[coin] = {"CURRENT": {"metrics": metrics(a), "trades": a}, "SCORE": {"metrics": metrics(b), "trades": b}}
+            current = simulate_coin(candles, coin, "CURRENT")
+            v2 = simulate_coin(candles, coin, "V2")
+            results[coin] = {"CURRENT": current, "V2": v2}
             print(f"{coin}: {len(candles)} candles loaded ({utc_from_ms(candles[0]['time']).date()} to {utc_from_ms(candles[-1]['time']).date()})")
         except Exception as exc:
             print(f"{coin}: ERROR: {exc}")
+
     print_report(results, args.months)
 
 
