@@ -1,0 +1,65 @@
+Downloading BTC 12 months of 1H data from Coinbase...
+BTC: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading ETH 12 months of 1H data from Coinbase...
+ETH: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading XRP 12 months of 1H data from Coinbase...
+XRP: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading SOL 12 months of 1H data from Coinbase...
+SOL: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading BNB 12 months of 1H data from Coinbase...
+BNB: 7031 candles loaded (2025-10-22 to 2026-08-12)
+Downloading ADA 12 months of 1H data from Coinbase...
+ADA: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading DOGE 12 months of 1H data from Coinbase...
+DOGE: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading LINK 12 months of 1H data from Coinbase...
+LINK: 8756 candles loaded (2025-08-11 to 2026-08-12)
+Downloading AVAX 12 months of 1H data from Coinbase...
+AVAX: 8756 candles loaded (2025-08-11 to 2026-08-12)
+
+=== CRYPTO ALERT BACKTEST v1.1.0 ===
+Period: approximately 12 months | Timeframe: 1H
+Data: Coinbase Exchange public candles (USD pairs)
+Fees: 0.10% per side | Slippage: 0.05% per side
+
+--- BTC ---
+ CURRENT: trades=49   win= 34.69% PF=0.681 expectancy=-0.3099% avgR=-0.0368 DD=20.18% return=-14.72%
+   SCORE: trades=193  win= 21.76% PF=0.503 expectancy=-0.5389% avgR=-0.2864 DD=68.4% return=-65.84%
+
+--- ETH ---
+ CURRENT: trades=48   win= 33.33% PF=0.732 expectancy=-0.2674% avgR=-0.0353 DD=17.25% return=-12.8%
+   SCORE: trades=226  win= 17.26% PF=0.643 expectancy=-0.4139% avgR=-0.154 DD=69.05% return=-63.45%
+
+--- XRP ---
+ CURRENT: trades=34   win= 14.71% PF=0.3 expectancy=-0.8614% avgR=-0.5218 DD=25.76% return=-25.76%
+   SCORE: trades=213  win= 12.68% PF=0.43 expectancy=-0.6848% avgR=-0.4114 DD=78.36% return=-77.84%
+
+--- SOL ---
+ CURRENT: trades=34   win= 14.71% PF=0.238 expectancy=-0.9567% avgR=-0.6361 DD=28.09% return=-28.09%
+   SCORE: trades=216  win= 17.59% PF=0.836 expectancy=-0.1864% avgR=0.0265 DD=54.3% return=-39.3%
+
+--- BNB ---
+ CURRENT: trades=34   win= 38.24% PF=0.726 expectancy=-0.2547% avgR=-0.0409 DD=11.62% return=-8.74%
+   SCORE: trades=153  win= 23.53% PF=0.68 expectancy=-0.3392% avgR=-0.1204 DD=50.53% return=-42.58%
+
+--- ADA ---
+ CURRENT: trades=31   win=  12.9% PF=0.26 expectancy=-0.9785% avgR=-0.6392 DD=27.84% return=-26.52%
+   SCORE: trades=236  win= 15.68% PF=0.675 expectancy=-0.3798% avgR=-0.2012 DD=68.27% return=-62.39%
+
+--- DOGE ---
+ CURRENT: trades=30   win=  30.0% PF=0.821 expectancy=-0.184% avgR=0.0318 DD=18.56% return=-5.96%
+   SCORE: trades=226  win= 17.26% PF=0.617 expectancy=-0.4394% avgR=-0.2219 DD=68.32% return=-65.23%
+
+--- LINK ---
+ CURRENT: trades=44   win= 15.91% PF=0.299 expectancy=-0.8737% avgR=-0.5308 DD=33.56% return=-32.34%
+   SCORE: trades=212  win= 14.15% PF=0.544 expectancy=-0.5413% avgR=-0.2872 DD=75.31% return=-70.09%
+
+--- AVAX ---
+ CURRENT: trades=42   win= 16.67% PF=0.492 expectancy=-0.6124% avgR=-0.3095 DD=26.22% return=-23.46%
+   SCORE: trades=226  win= 16.81% PF=0.857 expectancy=-0.1637% avgR=0.0263 DD=51.77% return=-37.66%
+
+=== AGGREGATE TRADE POOL ===
+ CURRENT: {'trades': 346, 'win_rate_pct': 23.99, 'profit_factor': 0.49, 'expectancy_pct': -0.5737, 'average_r': -0.2875, 'max_drawdown_pct': 88.3, 'net_return_pct': -87.04}
+   SCORE: {'trades': 1901, 'win_rate_pct': 17.15, 'profit_factor': 0.644, 'expectancy_pct': -0.4083, 'average_r': -0.1804, 'max_drawdown_pct': 99.98, 'net_return_pct': -99.98}
+
+Interpretation: do NOT deploy from one metric alone. Require enough trades, PF > 1 after costs, acceptable drawdown, and stability across coins/regimes.
