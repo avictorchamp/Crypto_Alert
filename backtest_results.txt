@@ -1,65 +1,70 @@
 Downloading BTC 12 months of 1H data from Coinbase...
-BTC: 8756 candles loaded (2025-08-11 to 2026-08-12)
+BTC: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading ETH 12 months of 1H data from Coinbase...
-ETH: 8756 candles loaded (2025-08-11 to 2026-08-12)
+ETH: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading XRP 12 months of 1H data from Coinbase...
-XRP: 8756 candles loaded (2025-08-11 to 2026-08-12)
+XRP: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading SOL 12 months of 1H data from Coinbase...
-SOL: 8756 candles loaded (2025-08-11 to 2026-08-12)
+SOL: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading BNB 12 months of 1H data from Coinbase...
-BNB: 7031 candles loaded (2025-10-22 to 2026-08-12)
+BNB: 7036 candles loaded (2025-10-22 to 2026-08-12)
 Downloading ADA 12 months of 1H data from Coinbase...
-ADA: 8756 candles loaded (2025-08-11 to 2026-08-12)
+ADA: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading DOGE 12 months of 1H data from Coinbase...
-DOGE: 8756 candles loaded (2025-08-11 to 2026-08-12)
+DOGE: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading LINK 12 months of 1H data from Coinbase...
-LINK: 8756 candles loaded (2025-08-11 to 2026-08-12)
+LINK: 8756 candles loaded (2025-08-12 to 2026-08-12)
 Downloading AVAX 12 months of 1H data from Coinbase...
-AVAX: 8756 candles loaded (2025-08-11 to 2026-08-12)
+AVAX: 8756 candles loaded (2025-08-12 to 2026-08-12)
 
-=== CRYPTO ALERT BACKTEST v1.1.0 ===
+=== CRYPTO ALERT BACKTEST v2.0.0 ===
 Period: approximately 12 months | Timeframe: 1H
 Data: Coinbase Exchange public candles (USD pairs)
 Fees: 0.10% per side | Slippage: 0.05% per side
+Risk/trade: 1.0% | Max concurrent positions: 3
 
 --- BTC ---
- CURRENT: trades=49   win= 34.69% PF=0.681 expectancy=-0.3099% avgR=-0.0368 DD=20.18% return=-14.72%
-   SCORE: trades=193  win= 21.76% PF=0.503 expectancy=-0.5389% avgR=-0.2864 DD=68.4% return=-65.84%
+ CURRENT: {'trades': 49, 'win_rate_pct': 34.69, 'profit_factor': 0.681, 'expectancy_pct': -0.3099, 'average_r': -0.0368, 'max_drawdown_pct': 9.58, 'net_return_pct': -2.22}
+      V2: {'trades': 8, 'win_rate_pct': 50.0, 'profit_factor': 1.206, 'expectancy_pct': 0.1594, 'average_r': 0.2991, 'max_drawdown_pct': 1.9, 'net_return_pct': 2.33}
 
 --- ETH ---
- CURRENT: trades=48   win= 33.33% PF=0.732 expectancy=-0.2674% avgR=-0.0353 DD=17.25% return=-12.8%
-   SCORE: trades=226  win= 17.26% PF=0.643 expectancy=-0.4139% avgR=-0.154 DD=69.05% return=-63.45%
+ CURRENT: {'trades': 48, 'win_rate_pct': 33.33, 'profit_factor': 0.732, 'expectancy_pct': -0.2674, 'average_r': -0.0353, 'max_drawdown_pct': 10.58, 'net_return_pct': -2.28}
+      V2: {'trades': 8, 'win_rate_pct': 25.0, 'profit_factor': 0.655, 'expectancy_pct': -0.401, 'average_r': -0.1084, 'max_drawdown_pct': 3.08, 'net_return_pct': -0.97}
 
 --- XRP ---
- CURRENT: trades=34   win= 14.71% PF=0.3 expectancy=-0.8614% avgR=-0.5218 DD=25.76% return=-25.76%
-   SCORE: trades=213  win= 12.68% PF=0.43 expectancy=-0.6848% avgR=-0.4114 DD=78.36% return=-77.84%
+ CURRENT: {'trades': 34, 'win_rate_pct': 14.71, 'profit_factor': 0.3, 'expectancy_pct': -0.8614, 'average_r': -0.5218, 'max_drawdown_pct': 16.52, 'net_return_pct': -16.52}
+      V2: {'trades': 5, 'win_rate_pct': 20.0, 'profit_factor': 0.411, 'expectancy_pct': -0.7397, 'average_r': -0.3637, 'max_drawdown_pct': 4.09, 'net_return_pct': -1.85}
 
 --- SOL ---
- CURRENT: trades=34   win= 14.71% PF=0.238 expectancy=-0.9567% avgR=-0.6361 DD=28.09% return=-28.09%
-   SCORE: trades=216  win= 17.59% PF=0.836 expectancy=-0.1864% avgR=0.0265 DD=54.3% return=-39.3%
+ CURRENT: {'trades': 34, 'win_rate_pct': 14.71, 'profit_factor': 0.238, 'expectancy_pct': -0.9567, 'average_r': -0.6361, 'max_drawdown_pct': 19.65, 'net_return_pct': -19.65}
+      V2: {'trades': 7, 'win_rate_pct': 28.57, 'profit_factor': 0.626, 'expectancy_pct': -0.4098, 'average_r': -0.2154, 'max_drawdown_pct': 5.09, 'net_return_pct': -1.57}
 
 --- BNB ---
- CURRENT: trades=34   win= 38.24% PF=0.726 expectancy=-0.2547% avgR=-0.0409 DD=11.62% return=-8.74%
-   SCORE: trades=153  win= 23.53% PF=0.68 expectancy=-0.3392% avgR=-0.1204 DD=50.53% return=-42.58%
+ CURRENT: {'trades': 34, 'win_rate_pct': 38.24, 'profit_factor': 0.726, 'expectancy_pct': -0.2547, 'average_r': -0.0409, 'max_drawdown_pct': 6.59, 'net_return_pct': -1.69}
+      V2: {'trades': 1, 'win_rate_pct': 100.0, 'profit_factor': 'INF', 'expectancy_pct': 2.3017, 'average_r': 2.0243, 'max_drawdown_pct': 0.0, 'net_return_pct': 2.02}
 
 --- ADA ---
- CURRENT: trades=31   win=  12.9% PF=0.26 expectancy=-0.9785% avgR=-0.6392 DD=27.84% return=-26.52%
-   SCORE: trades=236  win= 15.68% PF=0.675 expectancy=-0.3798% avgR=-0.2012 DD=68.27% return=-62.39%
+ CURRENT: {'trades': 31, 'win_rate_pct': 12.9, 'profit_factor': 0.26, 'expectancy_pct': -0.9785, 'average_r': -0.6392, 'max_drawdown_pct': 19.43, 'net_return_pct': -18.17}
+      V2: {'trades': 3, 'win_rate_pct': 100.0, 'profit_factor': 'INF', 'expectancy_pct': 3.4073, 'average_r': 2.732, 'max_drawdown_pct': 0.0, 'net_return_pct': 8.42}
 
 --- DOGE ---
- CURRENT: trades=30   win=  30.0% PF=0.821 expectancy=-0.184% avgR=0.0318 DD=18.56% return=-5.96%
-   SCORE: trades=226  win= 17.26% PF=0.617 expectancy=-0.4394% avgR=-0.2219 DD=68.32% return=-65.23%
+ CURRENT: {'trades': 30, 'win_rate_pct': 30.0, 'profit_factor': 0.821, 'expectancy_pct': -0.184, 'average_r': 0.0318, 'max_drawdown_pct': 13.39, 'net_return_pct': 0.51}
+      V2: {'trades': 3, 'win_rate_pct': 33.33, 'profit_factor': 1.587, 'expectancy_pct': 0.5739, 'average_r': 0.4581, 'max_drawdown_pct': 2.07, 'net_return_pct': 1.31}
 
 --- LINK ---
- CURRENT: trades=44   win= 15.91% PF=0.299 expectancy=-0.8737% avgR=-0.5308 DD=33.56% return=-32.34%
-   SCORE: trades=212  win= 14.15% PF=0.544 expectancy=-0.5413% avgR=-0.2872 DD=75.31% return=-70.09%
+ CURRENT: {'trades': 43, 'win_rate_pct': 16.28, 'profit_factor': 0.306, 'expectancy_pct': -0.8638, 'average_r': -0.5188, 'max_drawdown_pct': 21.64, 'net_return_pct': -20.3}
+      V2: {'trades': 10, 'win_rate_pct': 20.0, 'profit_factor': 0.505, 'expectancy_pct': -0.6234, 'average_r': -0.3203, 'max_drawdown_pct': 6.03, 'net_return_pct': -3.26}
 
 --- AVAX ---
- CURRENT: trades=42   win= 16.67% PF=0.492 expectancy=-0.6124% avgR=-0.3095 DD=26.22% return=-23.46%
-   SCORE: trades=226  win= 16.81% PF=0.857 expectancy=-0.1637% avgR=0.0263 DD=51.77% return=-37.66%
+ CURRENT: {'trades': 42, 'win_rate_pct': 16.67, 'profit_factor': 0.492, 'expectancy_pct': -0.6124, 'average_r': -0.3095, 'max_drawdown_pct': 17.91, 'net_return_pct': -12.87}
+      V2: {'trades': 5, 'win_rate_pct': 0.0, 'profit_factor': 0.0, 'expectancy_pct': -1.5186, 'average_r': -1.039, 'max_drawdown_pct': 5.09, 'net_return_pct': -5.09}
 
-=== AGGREGATE TRADE POOL ===
- CURRENT: {'trades': 346, 'win_rate_pct': 23.99, 'profit_factor': 0.49, 'expectancy_pct': -0.5737, 'average_r': -0.2875, 'max_drawdown_pct': 88.3, 'net_return_pct': -87.04}
-   SCORE: {'trades': 1901, 'win_rate_pct': 17.15, 'profit_factor': 0.644, 'expectancy_pct': -0.4083, 'average_r': -0.1804, 'max_drawdown_pct': 99.98, 'net_return_pct': -99.98}
+=== TRADE-POOL COMPARISON ===
+ CURRENT: {'trades': 345, 'win_rate_pct': 24.06, 'profit_factor': 0.491, 'expectancy_pct': -0.5716, 'average_r': -0.2853, 'max_drawdown_pct': 68.45, 'net_return_pct': -64.01}
+      V2: {'trades': 50, 'win_rate_pct': 32.0, 'profit_factor': 0.846, 'expectancy_pct': -0.1616, 'average_r': 0.0279, 'max_drawdown_pct': 8.18, 'net_return_pct': 0.75}
 
-Interpretation: do NOT deploy from one metric alone. Require enough trades, PF > 1 after costs, acceptable drawdown, and stability across coins/regimes.
+=== PORTFOLIO CAPACITY COMPARISON ===
+ CURRENT: {'trades': 287, 'win_rate_pct': 24.04, 'profit_factor': 0.499, 'expectancy_pct': -0.5616, 'average_r': -0.2795, 'max_drawdown_pct': 57.12, 'net_return_pct': -56.58} | selected_trades=287
+      V2: {'trades': 49, 'win_rate_pct': 30.61, 'profit_factor': 0.775, 'expectancy_pct': -0.2409, 'average_r': -0.0318, 'max_drawdown_pct': 11.78, 'net_return_pct': -2.15} | selected_trades=49
+
+Decision rule: do NOT deploy unless PF > 1 after costs, expectancy > 0, drawdown is acceptable, and performance is stable across coins/regimes.
