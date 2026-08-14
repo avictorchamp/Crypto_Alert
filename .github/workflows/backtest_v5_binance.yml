@@ -1,0 +1,30 @@
+name: Crypto Alert V5 Binance Edge Discovery
+on:
+  push:
+    paths:
+      - 'backtest_v5_binance.py'
+      - '.github/workflows/backtest_v5_binance.yml'
+  workflow_dispatch:
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run Binance V5
+        run: python backtest_v5_binance.py --months 12
+      - name: Publish result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backtest_v5_binance_results.json
+          git diff --cached --quiet || git commit -m 'chore: publish Binance V5 results'
+          git push
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crypto-alert-v5-binance-results
+          path: backtest_v5_binance_results.json
