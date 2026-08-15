@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
-"""Research backtest: coin-specific rules using Binance public klines with fallback endpoints. Never trades."""
+"""Coin-specific research backtest using Binance public data archive. Never trades."""
 from __future__ import annotations
-import argparse,json,time
+import argparse,csv,io,json,math,time,zipfile
 from datetime import datetime,timedelta,timezone
 from urllib.request import Request,urlopen
 SYMBOLS=['BTCUSDT','ETHUSDT','XRPUSDT','SOLUSDT','BNBUSDT','ADAUSDT','DOGEUSDT','LINKUSDT','AVAXUSDT']
-BASES=['https://api.binance.com/api/v3/klines','https://api1.binance.com/api/v3/klines','https://api2.binance.com/api/v3/klines','https://api3.binance.com/api/v3/klines']
+ARCHIVE='https://data.binance.vision/data/spot/monthly/klines/{symbol}/1h/{symbol}-1h-{month}.zip'
 FEE=.001;SLIP=.0005
 
-def fetch(s,a,b):
- last=None
- for base in BASES:
+def months_between(start,end):
+ y,m=start.year,start.month
+ while (y,m)<=(end.year,end.month):
+  yield f'{y:04d}-{m:02d}'
+  m+=1
+  if m==13:y+=1;m=1
+
+def fetch(symbol,start,end):
+ rows=[]
+ for month in months_between(start,end):
+  url=ARCHIVE.format(symbol=symbol,month=month)
   try:
-   out=[];cur=int(a.timestamp()*1000);end=int(b.timestamp()*1000)
-   while cur<end:
-    u=f'{base}?symbol={s}&interval=1h&startTime={cur}&endTime={end}&limit=1000'
-    with urlopen(Request(u,headers={'User-Agent':'Mozilla/5.0'}),timeout=30) as r:d=json.loads(r.read().decode())
-    if not d: break
-    out+=d;n=int(d[-1][0])
-    if n<=cur:break
-    cur=n+3600000;time.sleep(.05)
-   if len(out)>100:return [{'o':float(x[1]),'h':float(x[2]),'l':float(x[3]),'c':float(x[4]),'v':float(x[5])} for x in out]
-  except Exception as e:last=e
- raise last or RuntimeError('No Binance data')
+   with urlopen(Request(url,headers={'User-Agent':'CryptoAlert-Research/1.0'}),timeout=60) as r:data=r.read()
+   with zipfile.ZipFile(io.BytesIO(data)) as z:
+    name=z.namelist()[0]
+    text=z.read(name).decode('utf-8')
+    for row in csv.reader(io.StringIO(text)):
+     if not row or not row[0] or not str(row[0]).isdigit():continue
+     ts=int(row[0]);dt=datetime.fromtimestamp(ts/1000,timezone.utc)
+     if start<=dt<=end:
+      rows.append({'t':ts,'o':float(row[1]),'h':float(row[2]),'l':float(row[3]),'c':float(row[4]),'v':float(row[5])})
+  except Exception as e:
+   if '404' in str(e): continue
+   raise RuntimeError(f'{symbol} {month}: {e}')
+  time.sleep(.05)
+ rows.sort(key=lambda x:x['t']);return rows
 
 def ema(v,p):
  k=2/(p+1);x=v[0]
@@ -55,6 +66,7 @@ def main():
  for coin in SYMBOLS:
   try:b=fetch(coin,start,end)
   except Exception as e:allres[coin]={'error':str(e)};continue
+  if len(b)<500:allres[coin]={'error':f'insufficient candles: {len(b)}'};continue
   cut=int(len(b)*.67);train={};test={}
   for i in range(51,len(b)-25):
    sg=signals(feat(b,i));o=outcome(b,i)
@@ -67,7 +79,7 @@ def main():
    st=stats(rows)
    if st and st['trades']>=30 and (st['profit_factor'] or 0)>1 and st['expectancy_pct']>0:candidates.append((name,st))
   candidates.sort(key=lambda z:(z[1]['expectancy_pct'],z[1]['profit_factor'] or 0),reverse=True);selected=candidates[0][0] if candidates else 'baseline'
-  allres[coin]={'train':{k:stats(v) for k,v in train.items()},'test':{k:stats(v) for k,v in test.items()},'selected_rule':selected,'selected_train':stats(train.get(selected,[])),'selected_test':stats(test.get(selected,[]))}
- payload={'version':'6.0.2','purpose':'COIN_SPECIFIC_RESEARCH','source':'BINANCE_SPOT','months':a.months,'interval':'1h','train_fraction':.67,'test_fraction':.33,'horizon_hours':24,'costs':{'fee_per_side':FEE,'slippage_per_side':SLIP},'selection_rule':'TRAIN only: >=30 trades, PF>1, expectancy>0; unchanged TEST','results':allres}
+  allres[coin]={'candles':len(b),'train':{k:stats(v) for k,v in train.items()},'test':{k:stats(v) for k,v in test.items()},'selected_rule':selected,'selected_train':stats(train.get(selected,[])),'selected_test':stats(test.get(selected,[]))}
+ payload={'version':'6.1.0','purpose':'COIN_SPECIFIC_RESEARCH','source':'BINANCE_DATA_ARCHIVE','months':a.months,'interval':'1h','train_fraction':.67,'test_fraction':.33,'horizon_hours':24,'costs':{'fee_per_side':FEE,'slippage_per_side':SLIP},'selection_rule':'TRAIN only: >=30 trades, PF>1, expectancy>0; unchanged TEST','results':allres}
  open('backtest_coin_specific_results.json','w').write(json.dumps(payload,indent=2));print(json.dumps(payload,indent=2))
 if __name__=='__main__':main()
