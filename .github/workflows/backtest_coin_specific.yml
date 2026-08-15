@@ -1,10 +1,14 @@
 name: Coin Specific Backtest
 on:
   push:
+    branches:
+      - research/coin-specific-backtest
     paths:
       - 'backtest_coin_specific.py'
       - '.github/workflows/backtest_coin_specific.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
 jobs:
   backtest:
     runs-on: ubuntu-latest
@@ -16,6 +20,18 @@ jobs:
           python-version: '3.12'
       - name: Run research backtest
         run: python backtest_coin_specific.py --months 24
+      - name: Validate result
+        run: |
+          test -s backtest_coin_specific_results.json
+          python - <<'PY'
+          import json
+          p='backtest_coin_specific_results.json'
+          d=json.load(open(p))
+          assert d.get('results'), 'No results produced'
+          print('RESULT_OK coins=', len(d['results']))
+          for coin,r in d['results'].items():
+              print(coin, 'candles=', r.get('candles'), 'error=', r.get('error'))
+          PY
       - name: Upload result
         uses: actions/upload-artifact@v4
         with:
