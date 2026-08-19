@@ -1,4 +1,5 @@
 name: Coin Specific Backtest
+
 on:
   push:
     branches:
@@ -9,31 +10,39 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '*/15 * * * *'
+
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Show revision
+        run: |
+          git rev-parse HEAD
+          grep -n "version.*7.1.0" backtest_coin_specific.py || true
       - name: Run research backtest
         run: python backtest_coin_specific.py --months 24
-      - name: Validate result
+      - name: Validate V7.1 result
         run: |
           test -s backtest_coin_specific_results.json
           python - <<'PY'
           import json
           p='backtest_coin_specific_results.json'
           d=json.load(open(p))
+          assert d.get('version') == '7.1.0', f"Wrong version: {d.get('version')}"
+          assert d.get('purpose') == 'COMPARE_1H_VS_1D_FILTER_PLUS_1H', f"Wrong purpose: {d.get('purpose')}"
           assert d.get('results'), 'No results produced'
-          print('RESULT_OK coins=', len(d['results']))
+          assert len(d['results']) == 9, f"Expected 9 coins, got {len(d['results'])}"
+          print('V7.1_RESULT_OK coins=', len(d['results']))
           for coin,r in d['results'].items():
-              print(coin, 'candles=', r.get('candles'), 'error=', r.get('error'))
+              print(coin, '1h=', r.get('candles_1h'), '1d=', r.get('candles_1d'), 'error=', r.get('error'))
           PY
       - name: Upload result
         uses: actions/upload-artifact@v4
         with:
-          name: coin-specific-backtest-results
+          name: coin-specific-backtest-v7-1-results
           path: backtest_coin_specific_results.json
