@@ -18,11 +18,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Show revision and compile
+      - name: Show revision and verify V7.1 source
         run: |
           echo "V7.1 CLEAN RUN"
           git rev-parse HEAD
           python -m py_compile backtest_coin_specific.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backtest_coin_specific.py').read_text()
+          assert 'V7.1 research backtest' in s, 'WRONG SOURCE: V7.1 marker missing'
+          assert "'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH'" in s, 'WRONG SOURCE: V7.1 purpose missing'
+          assert "'1H_ONLY','1D_BULL_FILTER'" in s, 'WRONG SOURCE: comparison modes missing'
+          print('SOURCE_V7_1_OK')
+          PY
       - name: Run research backtest
         run: python backtest_coin_specific.py --months 24
       - name: Validate V7.1 result schema
@@ -31,8 +39,8 @@ jobs:
           python - <<'PY'
           import json
           d=json.load(open('backtest_coin_specific_results.json'))
-          assert d.get('version') == '7.1.0', d.get('version')
-          assert d.get('purpose') == 'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH', d.get('purpose')
+          assert d.get('version') == '7.1.0', f'WRONG RESULT VERSION: {d.get("version")}'
+          assert d.get('purpose') == 'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH', f'WRONG RESULT PURPOSE: {d.get("purpose")}'
           results=d.get('results',{})
           assert isinstance(results,dict) and len(results)==9, f'coins={len(results)}'
           expected={'1H_ONLY','1D_BULL_FILTER'}
@@ -42,13 +50,11 @@ jobs:
               assert r.get('candles_1d',0) >= 50, f'{coin} 1D={r.get("candles_1d")}'
               summary=r.get('summary')
               assert isinstance(summary,dict), f'{coin}: summary type={type(summary).__name__}'
-              keys=set(summary.keys())
-              assert keys==expected, f'{coin}: summary keys={sorted(keys)}'
+              assert set(summary.keys())==expected, f'{coin}: summary keys={sorted(summary.keys())}'
               for mode in expected:
                   assert isinstance(summary[mode],dict), f'{coin}: {mode} is not dict'
                   assert 'rules' in summary[mode] and 'selected' in summary[mode], f'{coin}: malformed {mode}'
           print('V7.1 CLEAN RESULT OK')
-          print('coins=',len(results))
           for coin,r in results.items():
               print(coin, '1H=',r['candles_1h'], '1D=',r['candles_1d'], 'selected_1H=',r['summary']['1H_ONLY']['selected'], 'selected_1D1H=',r['summary']['1D_BULL_FILTER']['selected'])
           PY
