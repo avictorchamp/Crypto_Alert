@@ -17,11 +17,11 @@ def parse_ts(x):
  x=int(x)
  while x>10_000_000_000_000:x//=1000
  return x
-def fetch(url,start,end):
+def fetch(url,s,start,end):
  out=[]
  for mo in months(start,end):
   try:
-   with urlopen(Request(url.format(m=mo),headers={'User-Agent':'CryptoAlert-Research/7.1'}),timeout=60) as r:data=r.read()
+   with urlopen(Request(url.format(s=s,m=mo),headers={'User-Agent':'CryptoAlert-Research/7.1'}),timeout=60) as r:data=r.read()
    with zipfile.ZipFile(io.BytesIO(data)) as z:
     with z.open(z.namelist()[0]) as f:
      for raw in f:
@@ -30,7 +30,7 @@ def fetch(url,start,end):
       t=parse_ts(a[0]);dt=datetime.fromtimestamp(t/1000,timezone.utc)
       if start<=dt<=end:out.append({'t':t,'o':float(a[1]),'h':float(a[2]),'l':float(a[3]),'c':float(a[4]),'v':float(a[5])})
   except Exception as e:
-   if '404' not in str(e):raise RuntimeError(f'{mo}: {e}')
+   if '404' not in str(e):raise RuntimeError(f'{s} {mo}: {e}')
   time.sleep(.02)
  out.sort(key=lambda x:x['t']);return out
 def ema(v,p):
@@ -45,7 +45,7 @@ def daily_regime(d,t):
  c=[x['c'] for x in rows[-50:]];e20=ema(c[-20:],20);e50=ema(c,50)
  return 'BULL' if e20>e50*1.002 else 'BEAR' if e20<e50*.998 else 'SIDEWAYS'
 def feat(b,i):
- c=[x['c'] for x in b[i-50:i+1]];p=c[-1];e20=ema(c[-20:],20);e50=ema(c,50);r=rsi(c);sup=min(c[-20:]);res=max(c[-20:]);avg=sum(c[-20:])/20;vol=b[i]['v'];va=sum(x['v'] for x in b[i-20:i])/20;return p,e20,e50,r,sup,res,avg,vol,va
+ c=[x['c'] for x in b[i-50:i+1]];p=c[-1];e20=ema(c[-20:],20);e50=ema(c[-50:],50);r=rsi(c);sup=min(c[-20:]);res=max(c[-20:]);avg=sum(c[-20:])/20;vol=b[i]['v'];va=sum(x['v'] for x in b[i-20:i])/20;return p,e20,e50,r,sup,res,avg,vol,va
 def rules(x):
  p,e20,e50,r,sup,res,avg,vol,va=x;bull=e20>e50;near=(p-sup)/p<=.015;entry=sup<=p<=sup*1.005;mid=(sup+sup*1.005)/2;rr=(res-mid)/(mid-sup*.99) if sup>0 else 0;quality=(25 if bull else 0)+(20 if 40<=r<=55 else 18 if r<35 else 15 if r<=65 else 5)+(20 if near else 10 if (p-sup)/p<=.03 else 0)+(15 if entry else 5 if p<=sup*1.01 else 0)+(20 if rr>=2 else 15 if rr>=1.5 else 10 if rr>=1 else 0);return {'baseline':bull and near and r<65 and rr>=1 and quality>=65 and entry,'trend_pullback':bull and .97*e20<=p<=1.01*e20 and r<65 and rr>=1,'support_rsi':near and r<45 and entry and rr>=1,'reclaim':bull and p>=e20 and p<=e20*1.01 and r<60 and rr>=1,'momentum':bull and p>avg*1.01 and vol>=1.5*va and rr>=1}
 def outcome(b,i):
@@ -57,7 +57,7 @@ def stats(rows):
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--months',type=int,default=24);a=ap.parse_args();end=datetime.now(timezone.utc);start=end-timedelta(days=30.44*a.months);result={}
  for s in SYMBOLS:
-  try:h=fetch(H.format(s=s),start,end);d=fetch(D.format(s=s),start,end)
+  try:h=fetch(H,s,start,end);d=fetch(D,s,start,end)
   except Exception as e:result[s]={'error':str(e)};continue
   if len(h)<1000 or len(d)<50:result[s]={'error':f'insufficient 1h={len(h)} 1d={len(d)}'};continue
   events=[(h[i]['t'],daily_regime(d,h[i]['t']),outcome(h,i),rules(feat(h,i))) for i in range(51,len(h)-HORIZON) if outcome(h,i)]
