@@ -40,3 +40,4 @@ def main():
     out={'version':'7.2.0','purpose':'TRUE_OUT_OF_SAMPLE_RULE_VALIDATION','data_split':'12m_train_6m_validation_6m_true_oos','selection_locked_before_oos':True,'entry_interval':'1h','context_interval':'1d','horizon_hours':HORIZON,'costs':{'fee_per_side':FEE,'slippage_per_side':SLIP},'production_changed':False,'results':result}
     open('backtest_v7_2_oos_results.json','w').write(json.dumps(out,indent=2)); print(json.dumps(out,indent=2))
 if __name__=='__main__': main()
+# force push trigger: V7.2 execution checkpoint 2026-08-23
