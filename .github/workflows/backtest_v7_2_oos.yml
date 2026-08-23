@@ -1,11 +1,14 @@
 name: V7.2 True OOS Backtest
+
 on:
   push:
-    branches: [research/coin-specific-backtest]
+    branches:
+      - research/coin-specific-backtest
     paths:
       - 'backtest_v7_2_oos.py'
       - '.github/workflows/backtest_v7_2_oos.yml'
   workflow_dispatch:
+
 jobs:
   oos:
     runs-on: ubuntu-latest
@@ -13,22 +16,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with:
+          python-version: '3.12'
+      - name: Verify V7.2 source
+        run: |
+          git rev-parse HEAD
+          python -m py_compile backtest_v7_2_oos.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backtest_v7_2_oos.py').read_text()
+          assert "'7.2.0'" in s
+          assert 'TRUE_OUT_OF_SAMPLE_RULE_VALIDATION' in s
+          assert 'selection_locked_before_oos' in s
+          print('V7.2 SOURCE OK')
+          PY
       - name: Run V7.2
         run: python backtest_v7_2_oos.py --months 24
-      - name: Validate true OOS artifact
+      - name: Validate true OOS result
         run: |
           test -s backtest_v7_2_oos_results.json
           python - <<'PY'
           import json
           d=json.load(open('backtest_v7_2_oos_results.json'))
-          assert d['version']=='7.2.0'
-          assert d['purpose']=='TRUE_OUT_OF_SAMPLE_RULE_VALIDATION'
+          assert d['version']=='7.2.0', d.get('version')
+          assert d['purpose']=='TRUE_OUT_OF_SAMPLE_RULE_VALIDATION', d.get('purpose')
           assert d['selection_locked_before_oos'] is True
-          assert len(d['results'])==9
+          assert len(d['results'])==9, len(d['results'])
+          for c,r in d['results'].items():
+              assert r.get('error') is None, f'{c}: {r.get("error")}'
+              for mode,v in r['summary'].items():
+                  assert v['selection_rule'] in {'baseline','trend_pullback','momentum','reclaim','support_rsi'}
+                  assert isinstance(v['true_oos'],dict)
           print('V7.2 TRUE OOS OK')
           for c,r in d['results'].items():
-              print(c, {m:(v['selection_rule'],v['true_oos']) for m,v in r['summary'].items()})
+              print(c, [(m,v['selection_rule'],v['true_oos']['trades'],v['true_oos']['profit_factor'],v['true_oos']['expectancy_pct'],v['oos_pass']) for m,v in r['summary'].items()])
           PY
       - uses: actions/upload-artifact@v4
         with:
