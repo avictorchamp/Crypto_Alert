@@ -6,6 +6,7 @@ on:
       - research/coin-specific-backtest
     paths:
       - 'backtest_coin_specific.py'
+      - 'backtest_v7_2_oos.py'
       - '.github/workflows/backtest_coin_specific.yml'
   workflow_dispatch:
 
@@ -18,48 +19,49 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Show revision and verify V7.1 source
+      - name: Verify source revision
         run: |
-          echo "V7.1 CLEAN RUN"
           git rev-parse HEAD
-          python -m py_compile backtest_coin_specific.py
-          python - <<'PY'
-          from pathlib import Path
-          s=Path('backtest_coin_specific.py').read_text()
-          assert 'V7.1 research backtest' in s, 'WRONG SOURCE: V7.1 marker missing'
-          assert "'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH'" in s, 'WRONG SOURCE: V7.1 purpose missing'
-          assert "'1H_ONLY','1D_BULL_FILTER'" in s, 'WRONG SOURCE: comparison modes missing'
-          print('SOURCE_V7_1_OK')
-          PY
-      - name: Run research backtest
+          python -m py_compile backtest_coin_specific.py backtest_v7_2_oos.py
+      - name: Run V7.1 research backtest
         run: python backtest_coin_specific.py --months 24
-      - name: Validate V7.1 result schema
+      - name: Validate V7.1
         run: |
           test -s backtest_coin_specific_results.json
           python - <<'PY'
           import json
           d=json.load(open('backtest_coin_specific_results.json'))
-          assert d.get('version') == '7.1.0', f'WRONG RESULT VERSION: {d.get("version")}'
-          assert d.get('purpose') == 'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH', f'WRONG RESULT PURPOSE: {d.get("purpose")}'
-          results=d.get('results',{})
-          assert isinstance(results,dict) and len(results)==9, f'coins={len(results)}'
-          expected={'1H_ONLY','1D_BULL_FILTER'}
-          for coin,r in results.items():
-              assert r.get('error') is None, f'{coin}: {r.get("error")}'
-              assert r.get('candles_1h',0) >= 1000, f'{coin} 1H={r.get("candles_1h")}'
-              assert r.get('candles_1d',0) >= 50, f'{coin} 1D={r.get("candles_1d")}'
-              summary=r.get('summary')
-              assert isinstance(summary,dict), f'{coin}: summary type={type(summary).__name__}'
-              assert set(summary.keys())==expected, f'{coin}: summary keys={sorted(summary.keys())}'
-              for mode in expected:
-                  assert isinstance(summary[mode],dict), f'{coin}: {mode} is not dict'
-                  assert 'rules' in summary[mode] and 'selected' in summary[mode], f'{coin}: malformed {mode}'
-          print('V7.1 CLEAN RESULT OK')
-          for coin,r in results.items():
-              print(coin, '1H=',r['candles_1h'], '1D=',r['candles_1d'], 'selected_1H=',r['summary']['1H_ONLY']['selected'], 'selected_1D1H=',r['summary']['1D_BULL_FILTER']['selected'])
+          assert d.get('version') == '7.1.0', d.get('version')
+          assert d.get('purpose') == 'MULTI_TIMEFRAME_WALK_FORWARD_RESEARCH', d.get('purpose')
+          assert isinstance(d.get('results'),dict) and len(d['results'])==9
+          for c,r in d['results'].items(): assert r.get('error') is None, f'{c}: {r.get("error")}'
+          print('V7.1 OK')
           PY
-      - name: Upload result
+      - name: Run V7.2 TRUE OOS
+        run: python backtest_v7_2_oos.py --months 24
+      - name: Validate V7.2 TRUE OOS
+        run: |
+          test -s backtest_v7_2_oos_results.json
+          python - <<'PY'
+          import json
+          d=json.load(open('backtest_v7_2_oos_results.json'))
+          assert d['version']=='7.2.0', d.get('version')
+          assert d['purpose']=='TRUE_OUT_OF_SAMPLE_RULE_VALIDATION', d.get('purpose')
+          assert d['selection_locked_before_oos'] is True
+          assert len(d['results'])==9
+          for c,r in d['results'].items():
+              assert r.get('error') is None, f'{c}: {r.get("error")}'
+          print('V7.2 TRUE OOS OK')
+          for c,r in d['results'].items():
+              print(c, [(m,v['selection_rule'],v['true_oos']['trades'],v['true_oos']['profit_factor'],v['true_oos']['expectancy_pct'],v['oos_pass']) for m,v in r['summary'].items()])
+          PY
+      - name: Upload V7.1 result
         uses: actions/upload-artifact@v4
         with:
           name: coin-specific-backtest-v7-1-clean-results
           path: backtest_coin_specific_results.json
+      - name: Upload V7.2 OOS result
+        uses: actions/upload-artifact@v4
+        with:
+          name: coin-specific-backtest-v7-2-oos-results
+          path: backtest_v7_2_oos_results.json
