@@ -1,0 +1,60 @@
+name: V7.3 Locked Rule Stability
+
+on:
+  push:
+    branches:
+      - research/coin-specific-backtest
+    paths:
+      - 'backtest_v7_3_stability.py'
+      - 'backtest_coin_specific.py'
+      - '.github/workflows/backtest_v7_3_stability.yml'
+  workflow_dispatch:
+
+jobs:
+  stability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify V7.3 source
+        run: |
+          python -m py_compile backtest_v7_3_stability.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          s=Path('backtest_v7_3_stability.py').read_text()
+          assert "'7.3.0'" in s
+          assert 'V7.2_TRUE_OOS_SELECTION' in s
+          assert 'rules_reoptimized' in s
+          print('V7.3 SOURCE OK')
+          PY
+      - name: Run V7.3
+        run: python backtest_v7_3_stability.py
+      - name: Validate V7.3 result
+        run: |
+          test -s backtest_v7_3_stability_results.json
+          python - <<'PY'
+          import json
+          d=json.load(open('backtest_v7_3_stability_results.json'))
+          assert d['version']=='7.3.0', d.get('version')
+          assert d['purpose']=='LOCKED_RULE_STABILITY_CONFIRMATION', d.get('purpose')
+          assert d['rule_source']=='V7.2_TRUE_OOS_SELECTION'
+          assert d['rules_reoptimized'] is False
+          assert len(d['results'])==9, len(d['results'])
+          for c,r in d['results'].items():
+              assert r.get('error') is None, f'{c}: {r.get("error")}'
+              assert set(r['summary'])=={'1H_ONLY','1D_BULL_FILTER'}
+              for mode,v in r['summary'].items():
+                  assert v['locked_rule'] == d['locked_rules'][c][mode]
+                  assert len(v['windows'])==4
+          print('V7.3 STABILITY RESULT OK')
+          for c,r in d['results'].items():
+              print(c, [(m,v['locked_rule'],v['positive_windows'],v['combined_last_12m']['trades'],v['combined_last_12m']['profit_factor'],v['combined_last_12m']['expectancy_pct'],v['stability_pass']) for m,v in r['summary'].items()])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coin-specific-backtest-v7-3-stability-results
+          path: backtest_v7_3_stability_results.json
