@@ -58,3 +58,5 @@ jobs:
         with:
           name: coin-specific-backtest-v7-3-stability-results
           path: backtest_v7_3_stability_results.json
+
+# V7.3 trigger verification: keep this workflow on the proven push path.
