@@ -1,0 +1,36 @@
+name: V7.4 BNB Paper Forward
+on:
+  push:
+    branches: [research/coin-specific-backtest]
+    paths:
+      - 'paper_forward_v7_4.py'
+      - '.github/workflows/paper_forward_v7_4.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  paper-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/coin-specific-backtest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source
+        run: python -m py_compile paper_forward_v7_4.py
+      - name: Run paper forward snapshot
+        run: python paper_forward_v7_4.py
+      - name: Commit paper log
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add paper_forward_v7_4_log.json
+          git diff --cached --quiet || git commit -m 'update V7.4 BNB paper forward log'
+          git push origin HEAD:research/coin-specific-backtest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bnb-v7-4-paper-forward
+          path: paper_forward_v7_4_log.json
