@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.request import Request, urlopen
 
 SYMBOL='BNBUSDT'; HORIZON=24; FEE=.001; SLIP=.0005
-H_URL='https://data.binance.vision/data/spot/monthly/klines/{s}/1h/{m}.zip'
-D_URL='https://data.binance.vision/data/spot/monthly/klines/{s}/1d/{m}.zip'
+H_URL='https://data.binance.vision/data/spot/monthly/klines/{s}/1h/{s}-1h-{m}.zip'
+D_URL='https://data.binance.vision/data/spot/monthly/klines/{s}/1d/{s}-1d-{m}.zip'
 LOG='paper_forward_v7_4_log.json'
 
 def months(a,b):
@@ -83,6 +83,6 @@ def main():
     closed=[x['paper_return_pct'] for x in data['observations'] if x.get('status')=='CLOSED']; wins=[x for x in closed if x>0]; loss=-sum(x for x in closed if x<0)
     data['summary']={'closed_trades':len(closed),'win_rate_pct':round(100*len(wins)/len(closed),2) if closed else None,'expectancy_pct':round(sum(closed)/len(closed),4) if closed else None,'profit_factor':round(sum(wins)/loss,3) if loss else None}
     with open(LOG,'w') as f: json.dump(data,f,indent=2)
-    print(json.dumps({'latest_signal':s,'summary':data['summary'],'observations':len(data['observations'])},indent=2))
+    print(json.dumps({'latest_signal':s,'summary':data['summary'],'observations':len(data['observations']),'candles_1h':len(h),'candles_1d':len(d)},indent=2))
 
 if __name__=='__main__': main()
