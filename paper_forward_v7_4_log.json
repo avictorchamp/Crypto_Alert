@@ -16,6 +16,17 @@
       "volume_ratio": 0.42261688921406915,
       "risk_reward": 1.9188626279090564,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-08-31T23:00:00+00:00",
+      "signal_candle_close_ms": 1788217200000,
+      "signal": false,
+      "price": 691.44,
+      "regime": "BULL",
+      "rsi": 61.44358154408418,
+      "volume_ratio": 0.38614519608486275,
+      "risk_reward": 0.09626906868090775,
+      "status": "NO_TRADE"
     }
   ],
   "production_changed": false,
@@ -23,6 +34,7 @@
     "closed_trades": 0,
     "win_rate_pct": null,
     "expectancy_pct": null,
-    "profit_factor": null
+    "profit_factor": null,
+    "open_trades": 0
   }
 }
