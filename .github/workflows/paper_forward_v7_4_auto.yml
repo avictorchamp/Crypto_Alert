@@ -1,0 +1,51 @@
+name: V7.4 BNB Paper Forward Auto
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '10 0 * * *'
+permissions:
+  contents: write
+jobs:
+  paper-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/coin-specific-backtest
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify source
+        run: python -m py_compile paper_forward_v7_4.py
+      - name: Run paper forward snapshot
+        run: python paper_forward_v7_4.py
+      - name: Validate snapshot
+        run: |
+          test -s paper_forward_v7_4_log.json
+          python - <<'PY'
+          import json
+          d=json.load(open('paper_forward_v7_4_log.json'))
+          assert d.get('version')=='7.4.0'
+          assert d.get('symbol')=='BNBUSDT'
+          assert d.get('rule')=='momentum'
+          assert d.get('context')=='1D_BULL_FILTER'
+          assert d.get('production_changed') is False
+          assert isinstance(d.get('observations'),list)
+          print('PAPER FORWARD AUTO SNAPSHOT OK')
+          print('observations=',len(d['observations']))
+          print('summary=',d.get('summary'))
+          PY
+      - name: Persist cumulative log to research branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add paper_forward_v7_4_log.json
+          git diff --cached --quiet || git commit -m 'chore: update V7.4 BNB paper forward log'
+          git push origin HEAD:research/coin-specific-backtest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bnb-v7-4-paper-forward
+          path: paper_forward_v7_4_log.json
