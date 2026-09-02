@@ -2,9 +2,9 @@
 """V7.4 BNB paper-forward recorder. Research only.
 
 The forward log is cumulative: an existing JSON log is loaded, prior OPEN
-paper trades are closed when their 24h horizon is available, and any missed
-23:00 UTC daily observation is caught up. The strategy conditions themselves
-are unchanged.
+paper trades are closed when their 24h horizon is available, and missed daily
+observations after the forward-test start are caught up. The strategy
+conditions themselves are unchanged.
 """
 from __future__ import annotations
 import io,json,os
@@ -21,14 +21,12 @@ LOG='paper_forward_v7_4_log.json'
 def months(a,b):
     y,m=a.year,a.month
     while (y,m)<=(b.year,b.month):
-        yield f'{y:04d}-{m:02d}'
-        m+=1
+        yield f'{y:04d}-{m:02d}';m+=1
         if m==13:y+=1;m=1
 
 def days(a,b):
     x=a
-    while x.date()<=b.date():
-        yield x.strftime('%Y-%m-%d');x+=timedelta(days=1)
+    while x.date()<=b.date():yield x.strftime('%Y-%m-%d');x+=timedelta(days=1)
 
 def get(u):
     try:
@@ -105,22 +103,21 @@ def main():
     if data.get('symbol')!=SYMBOL or data.get('rule')!='momentum' or data.get('context')!='1D_BULL_FILTER' or data.get('production_changed') is not False:raise RuntimeError('existing paper log identity/production guard mismatch')
     close_ready(data['observations'],h)
     seen={int(x['signal_candle_close_ms']) for x in data['observations'] if x.get('signal_candle_close_ms') is not None}
-    # One canonical observation per UTC day: the 23:00 candle, which is the last
-    # closed 1h candle before the next daily schedule. Catch up missed days.
-    candidates=[x for x in h if datetime.fromtimestamp(x['t']/1000,timezone.utc).hour==23 and x['t'] not in seen]
-    candidates=candidates[-90:]
+    anchor=min(seen) if seen else None
+    candidates=[x for x in h if datetime.fromtimestamp(x['t']/1000,timezone.utc).hour==23 and x['t'] not in seen and (anchor is None or x['t']>anchor)]
+    # A brand-new forward test records only the latest completed daily candle;
+    # an established test may catch up missed days after its first observation.
+    if anchor is None:candidates=candidates[-1:]
+    else:candidates=candidates[-90:]
     for last in candidates:
-        obs_time=datetime.fromtimestamp(last['t']/1000,timezone.utc)
-        day_start=obs_time.replace(hour=0,minute=0,second=0,microsecond=0)
-        # Only completed 1D candles are allowed into the regime calculation.
+        obs_time=datetime.fromtimestamp(last['t']/1000,timezone.utc);day_start=obs_time.replace(hour=0,minute=0,second=0,microsecond=0)
         completed_daily=[x for x in d if x['t']<int(day_start.timestamp()*1000)]
         if len(completed_daily)<50:continue
         history=[x for x in h if x['t']<=last['t']]
         if len(history)<51:continue
         s=signal(history,completed_daily)
         data['observations'].append({'signal_time_utc':obs_time.isoformat(),'signal_candle_close_ms':last['t'],'signal':bool(s['signal']),'price':s['price'],'regime':s['regime'],'rsi':s['rsi'],'volume_ratio':s['volume_ratio'],'risk_reward':s['risk_reward'],'ema20':s['ema20'],'ema50':s['ema50'],'status':'OPEN' if s['signal'] else 'NO_TRADE'})
-    data['observations'].sort(key=lambda x:x['signal_candle_close_ms'])
-    data['summary']=summary(data['observations']);data['last_run_utc']=end.isoformat()
+    data['observations'].sort(key=lambda x:x['signal_candle_close_ms']);data['summary']=summary(data['observations']);data['last_run_utc']=end.isoformat()
     if data['observations']:data['latest_observation_utc']=data['observations'][-1]['signal_time_utc']
     with open(LOG,'w') as f:json.dump(data,f,indent=2)
     latest=data['observations'][-1] if data['observations'] else None
