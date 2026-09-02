@@ -9,8 +9,12 @@ on:
       - '.github/workflows/paper_forward_v7_4_auto.yml'
 permissions:
   contents: write
+concurrency:
+  group: v7-4-paper-forward-auto
+  cancel-in-progress: false
 jobs:
   paper-forward:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,11 +42,14 @@ jobs:
           assert d.get('context')=='1D_BULL_FILTER'
           assert d.get('production_changed') is False
           assert isinstance(d.get('observations'),list)
+          assert isinstance(d.get('summary'),dict)
+          for k in ('closed_trades','winning_trades','losing_trades','win_rate_pct','average_return_pct','expectancy_pct','profit_factor','max_drawdown_pct'):
+              assert k in d['summary'], k
           print('PAPER FORWARD AUTO SNAPSHOT OK')
           print('observations=',len(d['observations']))
-          print('summary=',d.get('summary'))
+          print('summary=',d['summary'])
           PY
-      - name: Persist cumulative log to research branch
+      - name: Persist cumulative paper log to research branch
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
