@@ -1,4 +1,5 @@
 # V7.4 paper-forward automation; research-only, no live trading.
+# Verification trigger after cumulative-log integrity reset.
 name: V7.4 BNB Paper Forward Auto
 on:
   workflow_dispatch:
