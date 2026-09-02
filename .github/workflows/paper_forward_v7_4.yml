@@ -1,8 +1,6 @@
 name: V7.4 BNB Paper Forward
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '10 0 * * *'
   push:
     branches: [research/coin-specific-backtest]
     paths:
@@ -10,14 +8,19 @@ on:
       - '.github/workflows/paper_forward_v7_4.yml'
 permissions:
   contents: write
+concurrency:
+  group: v7-4-paper-forward-research
+  cancel-in-progress: false
 jobs:
   paper-forward:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: research/coin-specific-backtest
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -37,9 +40,12 @@ jobs:
           assert d.get('context')=='1D_BULL_FILTER'
           assert d.get('production_changed') is False
           assert isinstance(d.get('observations'),list)
+          assert isinstance(d.get('summary'),dict)
+          for k in ('closed_trades','winning_trades','losing_trades','win_rate_pct','average_return_pct','expectancy_pct','profit_factor','max_drawdown_pct'):
+              assert k in d['summary'], k
           print('PAPER FORWARD SNAPSHOT OK')
           print('observations=',len(d['observations']))
-          print('summary=',d.get('summary'))
+          print('summary=',d['summary'])
           PY
       - name: Persist cumulative paper log
         run: |
