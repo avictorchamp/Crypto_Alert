@@ -1,11 +1,6 @@
 name: V7.4 BNB Paper Forward
 on:
   workflow_dispatch:
-  push:
-    branches: [research/coin-specific-backtest]
-    paths:
-      - 'paper_forward_v7_4.py'
-      - '.github/workflows/paper_forward_v7_4.yml'
 permissions:
   contents: write
 concurrency:
@@ -13,7 +8,6 @@ concurrency:
   cancel-in-progress: false
 jobs:
   paper-forward:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
