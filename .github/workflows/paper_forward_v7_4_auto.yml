@@ -1,3 +1,4 @@
+# V7.4 paper-forward automation; research-only, no live trading.
 name: V7.4 BNB Paper Forward Auto
 on:
   workflow_dispatch:
