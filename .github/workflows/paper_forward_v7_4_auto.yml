@@ -1,0 +1,235 @@
+# V7.4 BNB Paper Forward Automation
+# RESEARCH ONLY
+# NO LIVE TRADING
+
+name: V7.4 BNB Paper Forward Auto
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # 07:10 Thailand time
+    # = 00:10 UTC
+    - cron: "10 0 * * *"
+
+  # IMPORTANT:
+  # Do NOT trigger on pushes to the research branch.
+  # The workflow itself commits the cumulative log back
+  # to the research branch.
+  #
+  # This prevents self-triggering loops.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-4-bnb-paper-forward
+  cancel-in-progress: false
+
+jobs:
+
+  paper-forward:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 20
+
+    steps:
+
+      # =====================================================
+      # Checkout research branch
+      # =====================================================
+
+      - name: Checkout research branch
+
+        uses: actions/checkout@v4
+
+        with:
+          ref: research/coin-specific-backtest
+          fetch-depth: 1
+
+
+      # =====================================================
+      # Python
+      # =====================================================
+
+      - name: Setup Python
+
+        uses: actions/setup-python@v5
+
+        with:
+          python-version: "3.12"
+
+
+      # =====================================================
+      # Verify Python syntax
+      # =====================================================
+
+      - name: Verify source
+
+        run: |
+
+          python -m py_compile paper_forward_v7_4.py
+
+
+      # =====================================================
+      # Run cumulative paper forward
+      # =====================================================
+
+      - name: Run paper forward snapshot
+
+        run: |
+
+          python paper_forward_v7_4.py
+
+
+      # =====================================================
+      # Validate output
+      # =====================================================
+
+      - name: Validate snapshot
+
+        run: |
+
+          test -s paper_forward_v7_4_log.json
+
+          python - <<'PY'
+
+          import json
+
+          with open(
+              "paper_forward_v7_4_log.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          assert data["version"] == "7.4.0"
+
+          assert data["purpose"] == "BNB_PAPER_FORWARD"
+
+          assert data["symbol"] == "BNBUSDT"
+
+          assert data["rule"] == "momentum"
+
+          assert data["context"] == "1D_BULL_FILTER"
+
+          assert data["forward_test_start_utc"] == \
+              "2026-08-28T23:00:00+00:00"
+
+          assert data["production_changed"] is False
+
+          assert isinstance(
+              data["observations"],
+              list
+          )
+
+          assert isinstance(
+              data["summary"],
+              dict
+          )
+
+          required_summary = [
+              "closed_trades",
+              "winning_trades",
+              "losing_trades",
+              "win_rate_pct",
+              "average_return_pct",
+              "expectancy_pct",
+              "profit_factor",
+              "max_drawdown_pct",
+              "open_trades",
+          ]
+
+          for key in required_summary:
+
+              assert key in data["summary"], key
+
+          # Make sure observations are chronological.
+
+          timestamps = [
+              int(
+                  x["signal_candle_close_ms"]
+              )
+              for x in data["observations"]
+          ]
+
+          assert timestamps == sorted(timestamps)
+
+          # Make sure there are no duplicate observations.
+
+          assert len(timestamps) == len(set(timestamps))
+
+          print(
+              "PAPER FORWARD VALIDATION PASSED"
+          )
+
+          print(
+              "observations =",
+              len(data["observations"])
+          )
+
+          print(
+              "summary =",
+              data["summary"]
+          )
+
+          print(
+              "forward_test_start_utc =",
+              data["forward_test_start_utc"]
+          )
+
+          print(
+              "production_changed =",
+              data["production_changed"]
+          )
+
+          PY
+
+
+      # =====================================================
+      # Persist cumulative log
+      # =====================================================
+
+      - name: Persist cumulative paper log
+
+        run: |
+
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add paper_forward_v7_4_log.json
+
+          if git diff --cached --quiet; then
+
+            echo "No paper-forward log changes."
+
+          else
+
+            git commit \
+              -m "chore: update V7.4 BNB paper forward log"
+
+            git push origin \
+              HEAD:research/coin-specific-backtest
+
+          fi
+
+
+      # =====================================================
+      # Upload artifact
+      # =====================================================
+
+      - name: Upload paper forward artifact
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: bnb-v7-4-paper-forward
+
+          path: paper_forward_v7_4_log.json
+
+          if-no-files-found: error
