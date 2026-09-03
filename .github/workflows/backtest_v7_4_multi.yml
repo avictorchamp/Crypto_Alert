@@ -1,0 +1,68 @@
+name: V7.4 Multi-Coin Final Confirmation
+
+on:
+  push:
+    branches: [research/multi-coin-backtest-v7-4]
+    paths:
+      - 'backtest_v7_4_multi_confirmation.py'
+      - 'backtest_coin_specific.py'
+      - '.github/workflows/backtest_v7_4_multi.yml'
+  workflow_dispatch:
+
+jobs:
+  confirmation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-backtest-v7-4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify source
+        run: |
+          python -m py_compile backtest_coin_specific.py backtest_v7_4_multi_confirmation.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('backtest_v7_4_multi_confirmation.py').read_text()
+          assert "'7.4.0'" in s
+          assert 'TARGETS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]' in s
+          assert 'MODE = "1D_BULL_FILTER"' in s
+          assert 'LOCKED_RULE = "momentum"' in s
+          assert 'rules_reoptimized": False' in s
+          print('V7.4 MULTI SOURCE OK')
+          PY
+
+      - name: Run V7.4 confirmation
+        run: python backtest_v7_4_multi_confirmation.py
+
+      - name: Validate result
+        run: |
+          test -s backtest_v7_4_multi_confirmation_results.json
+          python - <<'PY'
+          import json
+          d=json.load(open('backtest_v7_4_multi_confirmation_results.json'))
+          assert d['version']=='7.4.0'
+          assert d['purpose']=='MULTI_COIN_LOCKED_RULE_FINAL_CONFIRMATION'
+          assert d['symbols']==['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT']
+          assert d['mode']=='1D_BULL_FILTER'
+          assert d['locked_rule']=='momentum'
+          assert d['rules_reoptimized'] is False
+          assert d['production_changed'] is False
+          for s in d['symbols']:
+              r=d['results'][s]
+              assert r['production_changed'] is False
+              assert r['rules_reoptimized'] is False
+              assert len(r.get('windows', []))==6 or 'error' in r
+          print('V7.4 MULTI RESULT OK')
+          for s,r in d['results'].items():
+              print(s, 'PASS=',r.get('confirmation_pass'), 'positive_windows=',r.get('positive_windows'), 'trades=',r.get('combined_last_18m',{}).get('trades'), 'PF=',r.get('combined_last_18m',{}).get('profit_factor'), 'expectancy=',r.get('combined_last_18m',{}).get('expectancy_pct'), 'ERROR=',r.get('error'))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: multi-coin-v7-4-final-confirmation-results
+          path: backtest_v7_4_multi_confirmation_results.json
