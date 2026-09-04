@@ -1,0 +1,26 @@
+{
+  "version": "7.4.0",
+  "purpose": "MULTI_COIN_PAPER_FORWARD",
+  "symbol": "XRPUSDT",
+  "rule": "momentum",
+  "context": "1D_BULL_FILTER",
+  "horizon_hours": 24,
+  "forward_test_start_utc": "2026-08-28T23:00:00+00:00",
+  "observations": [],
+  "production_changed": false,
+  "summary": {
+    "closed_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate_pct": null,
+    "average_return_pct": null,
+    "expectancy_pct": null,
+    "profit_factor": null,
+    "max_drawdown_pct": 0.0,
+    "open_trades": 0
+  },
+  "last_run_utc": "2026-09-04T04:45:01.201112+00:00",
+  "latest_observation_utc": null,
+  "candles_1h": 1489,
+  "candles_1d": 62
+}
