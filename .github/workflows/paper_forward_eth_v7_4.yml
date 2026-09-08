@@ -1,0 +1,84 @@
+# V7.4 ETH Paper Forward Automation
+# RESEARCH ONLY — NO LIVE TRADING
+
+name: V7.4 ETH Paper Forward Auto
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 07:20 Thailand time = 00:20 UTC
+    - cron: "20 0 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v7-4-eth-paper-forward
+  cancel-in-progress: false
+
+jobs:
+  paper-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-forward-v7-4
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify source
+        run: python -m py_compile paper_forward_multi_v7_4.py
+
+      - name: Run ETH paper forward snapshot
+        env:
+          PAPER_FORWARD_SYMBOL: ETHUSDT
+        run: python paper_forward_multi_v7_4.py
+
+      - name: Validate ETH snapshot
+        run: |
+          test -s paper_forward_v7_4_ETHUSDT_log.json
+          python - <<'PY'
+          import json
+          with open('paper_forward_v7_4_ETHUSDT_log.json', encoding='utf-8') as f:
+              d = json.load(f)
+          assert d['version'] == '7.4.0'
+          assert d['purpose'] == 'MULTI_COIN_PAPER_FORWARD'
+          assert d['symbol'] == 'ETHUSDT'
+          assert d['rule'] == 'momentum'
+          assert d['context'] == '1D_BULL_FILTER'
+          assert d['horizon_hours'] == 24
+          assert d['forward_test_start_utc'] == '2026-08-28T23:00:00+00:00'
+          assert d['production_changed'] is False
+          assert isinstance(d['observations'], list)
+          assert isinstance(d['summary'], dict)
+          print('ETH V7.4 PAPER FORWARD VALIDATION PASSED')
+          print('observations =', len(d['observations']))
+          print('summary =', d['summary'])
+          print('latest_observation_utc =', d.get('latest_observation_utc'))
+          PY
+
+      - name: Persist ETH cumulative paper log
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add paper_forward_v7_4_ETHUSDT_log.json
+          if git diff --cached --quiet; then
+            echo 'No ETH paper-forward log changes.'
+          else
+            git commit -m 'chore: update V7.4 ETH paper forward log'
+            git push origin HEAD:research/multi-coin-forward-v7-4
+          fi
+
+      - name: Upload ETH paper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eth-v7-4-paper-forward
+          path: paper_forward_v7_4_ETHUSDT_log.json
+          if-no-files-found: error
