@@ -1,0 +1,63 @@
+name: V7.4 Multi-Coin Final Confirmation Fixed
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-backtest-v7-4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify source
+        run: |
+          python -m py_compile backtest_coin_specific.py backtest_v7_4_multi_confirmation.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("backtest_v7_4_multi_confirmation.py").read_text(encoding="utf-8")
+          normalized="".join(s.split())
+          required=["7.4.0",'TARGETS=["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"]','MODE="1D_BULL_FILTER"','LOCKED_RULE="momentum"',"rules_reoptimized","production_changed"]
+          for item in required:
+              assert item in normalized or item in s, f"Missing required source item: {item}"
+          print("V7.4 MULTI SOURCE OK")
+          PY
+      - name: Run actual locked-rule backtest
+        run: python backtest_v7_4_multi_confirmation.py
+      - name: Validate actual results
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("backtest_v7_4_multi_confirmation_results.json")
+          assert p.exists(), "Missing results JSON"
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["version"]=="7.4.0"
+          assert d["rules_reoptimized"] is False
+          assert d["production_changed"] is False
+          for symbol in ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"]:
+              assert symbol in d["results"], symbol
+              r=d["results"][symbol]
+              if "error" not in r:
+                  assert r["locked_rule"]=="momentum"
+                  assert r["mode"]=="1D_BULL_FILTER"
+                  assert r["rules_reoptimized"] is False
+                  assert r["production_changed"] is False
+                  assert len(r["windows"])==6
+                  print(symbol,r["confirmation_pass"],r["combined_last_18m"])
+              else:
+                  print(symbol,"RESEARCH ERROR",r["error"])
+          print("V7.4 MULTI ACTUAL RESULT VALIDATION OK")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7-4-multi-coin-confirmation
+          path: backtest_v7_4_multi_confirmation_results.json
+          if-no-files-found: error
