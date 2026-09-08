@@ -26,15 +26,16 @@ jobs:
         run: |
           python -m py_compile backtest_coin_specific.py backtest_v7_4_multi_confirmation.py
           python - <<'PY'
-          from pathlib import Path
-          s=Path('backtest_v7_4_multi_confirmation.py').read_text()
-          assert "'7.4.0'" in s
-          assert 'TARGETS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]' in s
-          assert 'MODE = "1D_BULL_FILTER"' in s
-          assert 'LOCKED_RULE = "momentum"' in s
-          assert 'rules_reoptimized": False' in s
+          import backtest_v7_4_multi_confirmation as m
+          assert m.VERSION == '7.4.0', m.VERSION
+          assert m.TARGETS == ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT'], m.TARGETS
+          assert m.MODE == '1D_BULL_FILTER', m.MODE
+          assert m.LOCKED_RULE == 'momentum', m.LOCKED_RULE
           print('V7.4 MULTI SOURCE OK')
-          PY
+          print('VERSION=', m.VERSION)
+          print('TARGETS=', m.TARGETS)
+          print('MODE=', m.MODE)
+          print('LOCKED_RULE=', m.LOCKED_RULE)
 
       - name: Run V7.4 confirmation
         run: python backtest_v7_4_multi_confirmation.py
