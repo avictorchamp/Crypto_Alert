@@ -6,7 +6,60 @@
   "context": "1D_BULL_FILTER",
   "horizon_hours": 24,
   "forward_test_start_utc": "2026-08-28T23:00:00+00:00",
-  "observations": [],
+  "observations": [
+    {
+      "signal_time_utc": "2026-08-28T23:00:00+00:00",
+      "signal_candle_close_ms": 1787958000000,
+      "signal": false,
+      "price": 77845.87,
+      "regime": "BULL",
+      "rsi": 30.7960591974296,
+      "volume_ratio": 0.7500390714956907,
+      "risk_reward": 1.6394453250073833,
+      "ema20": 78456.8495638542,
+      "ema50": 78961.86531256547,
+      "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-08-29T23:00:00+00:00",
+      "signal_candle_close_ms": 1788044400000,
+      "signal": false,
+      "price": 78230.0,
+      "regime": "BULL",
+      "rsi": 76.01392265391668,
+      "volume_ratio": 1.131145436426956,
+      "risk_reward": 0.0,
+      "ema20": 77949.86670968213,
+      "ema50": 78440.30790202902,
+      "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-08-30T23:00:00+00:00",
+      "signal_candle_close_ms": 1788130800000,
+      "signal": false,
+      "price": 77682.0,
+      "regime": "BULL",
+      "rsi": 45.16571352128695,
+      "volume_ratio": 5.355946490993978,
+      "risk_reward": 2.1316778661723155,
+      "ema20": 78486.35639373708,
+      "ema50": 78237.83198918954,
+      "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-08-31T23:00:00+00:00",
+      "signal_candle_close_ms": 1788217200000,
+      "signal": false,
+      "price": 78581.29,
+      "regime": "BULL",
+      "rsi": 51.22679461928498,
+      "volume_ratio": 0.575961582118529,
+      "risk_reward": 0.25051969971983407,
+      "ema20": 78475.80815405831,
+      "ema50": 78420.00790434968,
+      "status": "NO_TRADE"
+    }
+  ],
   "production_changed": false,
   "summary": {
     "closed_trades": 0,
@@ -19,8 +72,8 @@
     "max_drawdown_pct": 0.0,
     "open_trades": 0
   },
-  "last_run_utc": "2026-09-07T04:54:44.538667+00:00",
-  "latest_observation_utc": null,
-  "candles_1h": 1489,
-  "candles_1d": 62
+  "last_run_utc": "2026-09-08T04:50:26.450634+00:00",
+  "latest_observation_utc": "2026-08-31T23:00:00+00:00",
+  "candles_1h": 2233,
+  "candles_1d": 93
 }
