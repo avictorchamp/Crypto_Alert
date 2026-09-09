@@ -1,0 +1,69 @@
+name: V7.4 ETH Paper Forward
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 0 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eth-v7-4-paper-forward
+  cancel-in-progress: false
+
+jobs:
+  paper-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-forward-v7-4
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify source
+        run: python -m py_compile paper_forward_multi_v7_4.py
+
+      - name: Run ETH cumulative paper forward
+        env:
+          PAPER_FORWARD_SYMBOL: ETHUSDT
+        run: python paper_forward_multi_v7_4.py
+
+      - name: Validate snapshot
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("paper_forward_v7_4_ETHUSDT_log.json",encoding="utf-8"))
+          assert d["version"]=="7.4.0"
+          assert d["symbol"]=="ETHUSDT"
+          assert d["rule"]=="momentum"
+          assert d["context"]=="1D_BULL_FILTER"
+          assert d["production_changed"] is False
+          assert isinstance(d["observations"],list)
+          assert isinstance(d["summary"],dict)
+          print("ETH V7.4 PAPER FORWARD VALIDATION PASSED")
+          print(json.dumps({"observations":len(d["observations"]),"summary":d["summary"],"latest_observation_utc":d.get("latest_observation_utc")},indent=2))
+          PY
+
+      - name: Persist cumulative log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add paper_forward_v7_4_ETHUSDT_log.json
+          if git diff --cached --quiet; then
+            echo "No log changes."
+          else
+            git commit -m "chore: update ETH V7.4 paper forward log"
+            git push origin HEAD:research/multi-coin-forward-v7-4
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eth-v7-4-paper-forward
+          path: paper_forward_v7_4_ETHUSDT_log.json
+          if-no-files-found: error
