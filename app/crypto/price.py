@@ -1,4 +1,4 @@
-"""Crypto Alert market engine v3.10.0.
+"""Crypto Alert market engine v3.11.0.
 Dynamic Top 50 + Watchlist Memory monitoring. READ ONLY.
 """
 import time
@@ -6,11 +6,11 @@ import requests
 
 from app.crypto.watchlist_memory import get_watchlist
 
-VERSION = "3.10.0"
+VERSION = "3.11.0"
 BINANCE_24HR_URL = "https://api.binance.com/api/v3/ticker/24hr"
 BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 KLINE_INTERVAL = "1h"
-KLINE_LIMIT = 50
+KLINE_LIMIT = 100
 UNIVERSE_REFRESH_SECONDS = 1800
 TOP_N = 50
 MAX_WATCHLIST_EXTRA = 100
@@ -123,16 +123,34 @@ def get_symbol_market_data(symbol):
     candles = response.json()
     if not isinstance(candles, list) or len(candles) < KLINE_LIMIT:
         raise ValueError(f"Not enough candles for {symbol}")
-    prices = []
+
+    closes = []
+    volumes = []
     for candle in candles:
         try:
-            prices.append(float(candle[4]))
+            closes.append(float(candle[4]))
+            volumes.append(float(candle[5]))
         except (TypeError, ValueError, IndexError):
             continue
-    if len(prices) < KLINE_LIMIT:
-        raise ValueError(f"Invalid price data for {symbol}")
+
+    if len(closes) < KLINE_LIMIT or len(volumes) < KLINE_LIMIT:
+        raise ValueError(f"Invalid market data for {symbol}")
+
+    price = closes[-1]
+    avg_volume = sum(volumes[-21:-1]) / 20
+    volume_ratio = volumes[-1] / avg_volume if avg_volume > 0 else None
+    momentum_6h = (price / closes[-7]) - 1 if len(closes) >= 7 and closes[-7] else None
+
     coin = symbol[:-4]
-    return coin, {"symbol": symbol, "coin": coin, "price": prices[-1], "prices": prices}
+    return coin, {
+        "symbol": symbol,
+        "coin": coin,
+        "price": price,
+        "prices": closes,
+        "volumes": volumes,
+        "volume_ratio": volume_ratio,
+        "momentum_6h": momentum_6h,
+    }
 
 
 def get_market():
