@@ -1,0 +1,32 @@
+name: Production Crypto Alert Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile production modules
+        run: python -m py_compile app/main.py app/crypto/price.py app/crypto/analyzer.py app/crypto/strategy.py
+
+      - name: Run strategy tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
