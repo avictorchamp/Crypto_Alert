@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 # =========================================================
 
 
-VERSION = "3.9.0"
+VERSION = "3.12.0"
 
 SCAN_INTERVAL = 300
 
