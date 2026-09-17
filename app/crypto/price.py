@@ -3,6 +3,7 @@ Dynamic Top 50 + Watchlist Memory monitoring. READ ONLY.
 """
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.crypto.watchlist_memory import get_watchlist
 
@@ -11,6 +12,7 @@ BINANCE_24HR_URL = "https://api.binance.com/api/v3/ticker/24hr"
 BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 KLINE_INTERVAL = "1h"
 KLINE_LIMIT = 100
+MAX_WORKERS = 8
 UNIVERSE_REFRESH_SECONDS = 1800
 TOP_N = 50
 MAX_WATCHLIST_EXTRA = 100
@@ -117,7 +119,7 @@ def get_symbol_market_data(symbol):
     response = requests.get(
         BINANCE_KLINES_URL,
         params={"symbol": symbol, "interval": KLINE_INTERVAL, "limit": KLINE_LIMIT},
-        timeout=10,
+        timeout=8,
     )
     response.raise_for_status()
     candles = response.json()
@@ -162,13 +164,20 @@ def get_market():
     print(f"Market universe: Top50={len(dynamic)}, WatchlistExtra={len(extra)}, Total={len(symbols)}")
     if extra:
         print("Watchlist extra:", ", ".join(x[:-4] for x in extra))
-    for symbol in symbols:
-        try:
-            coin, data = get_symbol_market_data(symbol)
-            result[coin] = data
-        except Exception as e:
-            failed.append({"symbol": symbol, "error": str(e)})
-            print(f"Market error for {symbol}: {e}")
+    # Fetch candles concurrently. The scanner runs every 5 minutes; serially
+    # fetching 50 symbols can exceed that interval when Binance is slow.
+    # A bounded pool keeps latency predictable without creating an excessive
+    # request burst.
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(get_symbol_market_data, symbol): symbol for symbol in symbols}
+        for future in as_completed(futures):
+            symbol = futures[future]
+            try:
+                coin, data = future.result()
+                result[coin] = data
+            except Exception as e:
+                failed.append({"symbol": symbol, "error": str(e)})
+                print(f"Market error for {symbol}: {e}")
     duration = round(time.time() - started, 3)
     _last_market_status = {
         "status": "success",
