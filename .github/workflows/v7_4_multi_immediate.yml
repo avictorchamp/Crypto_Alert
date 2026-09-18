@@ -1,0 +1,64 @@
+name: V7.4 Multi-Coin Paper Forward Immediate Verification
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  paper-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout multi-coin research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-forward-v7-4
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify source
+        run: python -m py_compile paper_forward_multi_v7_4.py
+
+      - name: Run BTC ETH SOL XRP paper forward snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          for symbol in BTCUSDT ETHUSDT SOLUSDT XRPUSDT; do
+            echo "===== ${symbol} ====="
+            PAPER_FORWARD_SYMBOL="${symbol}" python paper_forward_multi_v7_4.py
+          done
+
+      - name: Validate all snapshots
+        run: |
+          python - <<'PY'
+          import json
+          symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
+          for symbol in symbols:
+              path = f"paper_forward_v7_4_{symbol}_log.json"
+              with open(path, encoding="utf-8") as f:
+                  data = json.load(f)
+              assert data["version"] == "7.4.0"
+              assert data["purpose"] == "MULTI_COIN_PAPER_FORWARD"
+              assert data["symbol"] == symbol
+              assert data["rule"] == "momentum"
+              assert data["context"] == "1D_BULL_FILTER"
+              assert data["production_changed"] is False
+              assert isinstance(data["observations"], list)
+              assert isinstance(data["summary"], dict)
+              print(symbol, data["summary"], "observations=", len(data["observations"]), "latest=", data["latest_observation_utc"])
+          print("MULTI-COIN PAPER FORWARD VALIDATION PASSED")
+          PY
+
+      - name: Upload multi-coin artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-coin-v7-4-paper-forward-immediate
+          path: paper_forward_v7_4_*USDT_log.json
+          if-no-files-found: error
