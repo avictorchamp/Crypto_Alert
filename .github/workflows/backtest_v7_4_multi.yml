@@ -67,3 +67,5 @@ jobs:
         with:
           name: multi-coin-v7-4-final-confirmation-results
           path: backtest_v7_4_multi_confirmation_results.json
+
+# Push-trigger is intentionally kept so the assistant can trigger and verify this workflow via a repository commit.
