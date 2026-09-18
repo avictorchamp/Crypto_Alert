@@ -1,0 +1,46 @@
+name: V7.4 Multi-Coin Signal Gate Diagnostic
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  diagnostic:
+    name: diagnostic
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout multi-coin research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/multi-coin-backtest-v7-4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify source
+        run: |
+          python -m py_compile backtest_coin_specific.py v7_4_multi_coin_signal_gate_diagnostic.py
+      - name: Run gate diagnostic
+        run: |
+          python v7_4_multi_coin_signal_gate_diagnostic.py
+      - name: Validate diagnostic
+        run: |
+          python - <<'PY'
+          import json
+          p='v7_4_multi_coin_signal_gate_diagnostic_results.json'
+          d=json.load(open(p))
+          assert d['production_changed'] is False
+          assert set(d['results']) == {'BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT'}
+          for s,r in d['results'].items():
+              assert 'error' not in r, (s,r)
+              g=r['gates']
+              assert g['1D_BULL'] >= g['FULL_LOCKED_MOMENTUM']
+          print('V7.4 SIGNAL GATE DIAGNOSTIC VALIDATION PASSED')
+          PY
+      - name: Upload diagnostic artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-4-multi-coin-signal-gate-diagnostic
+          path: v7_4_multi_coin_signal_gate_diagnostic_results.json
