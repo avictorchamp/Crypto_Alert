@@ -50,6 +50,26 @@ def read_zip(data,start,end,out):
     while t>10_000_000_000_000:t//=1000
     dt=datetime.fromtimestamp(t/1000,timezone.utc)
     if start<=dt<=end:out.append({"t":t,"o":float(x[1]),"h":float(x[2]),"l":float(x[3]),"c":float(x[4]),"v":float(x[5])})
+def fetch_binance(kind,start,end):
+ interval='1h' if kind=='1h' else '1d'
+ start_ms=int(start.timestamp()*1000); end_ms=int(end.timestamp()*1000)
+ out=[]; cursor=start_ms
+ while cursor<=end_ms:
+  url=(f"https://api.binance.com/api/v3/klines?symbol={SYMBOL}"
+       f"&interval={interval}&startTime={cursor}&endTime={end_ms}&limit=1000")
+  with urlopen(Request(url,headers={"User-Agent":"CryptoAlert-PaperForward/7.4"}),timeout=30) as r:
+   rows=json.loads(r.read().decode())
+  if not rows: break
+  for x in rows:
+   t=int(x[0]); dt=datetime.fromtimestamp(t/1000,timezone.utc)
+   if start<=dt<=end:
+    out.append({"t":t,"o":float(x[1]),"h":float(x[2]),"l":float(x[3]),"c":float(x[4]),"v":float(x[5])})
+  nxt=int(rows[-1][0]) + (3600000 if interval=='1h' else 86400000)
+  if nxt<=cursor: break
+  cursor=nxt
+  if len(rows)<1000: break
+ return sorted({x['t']:x for x in out}.values(),key=lambda x:x['t'])
+
 def fetch(kind,start,end):
  out=[]; mu,du=(M1H,D1H) if kind=='1h' else (M1D,D1D)
  for month in months(start,end):
@@ -60,7 +80,11 @@ def fetch(kind,start,end):
   for date in days(max(start,ms),min(end,me)):
    data=get(du.format(symbol=SYMBOL,date=date))
    if data is not None:read_zip(data,start,end,out)
- return sorted({x['t']:x for x in out}.values(),key=lambda x:x['t'])
+ merged={x['t']:x for x in out}
+ if not merged or max(merged)<int(end.timestamp()*1000)-2*86400000:
+  for x in fetch_binance(kind,start,end):
+   merged[x['t']]=x
+ return sorted(merged.values(),key=lambda x:x['t'])
 def ema(v,p):
  k=2/(p+1); e=v[0]
  for x in v[1:]:e=x*k+e*(1-k)
