@@ -62,3 +62,5 @@ jobs:
           name: multi-coin-v7-4-paper-forward-immediate
           path: paper_forward_v7_4_*USDT_log.json
           if-no-files-found: error
+
+# retry after Binance US data-source fallback
