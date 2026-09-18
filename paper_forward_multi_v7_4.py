@@ -55,10 +55,20 @@ def fetch_binance(kind,start,end):
  start_ms=int(start.timestamp()*1000); end_ms=int(end.timestamp()*1000)
  out=[]; cursor=start_ms
  while cursor<=end_ms:
-  url=(f"https://api.binance.com/api/v3/klines?symbol={SYMBOL}"
-       f"&interval={interval}&startTime={cursor}&endTime={end_ms}&limit=1000")
-  with urlopen(Request(url,headers={"User-Agent":"CryptoAlert-PaperForward/7.4"}),timeout=30) as r:
-   rows=json.loads(r.read().decode())
+  rows=None
+  last_error=None
+  for host in ("api.binance.com","api.binance.us"):
+   url=(f"https://{host}/api/v3/klines?symbol={SYMBOL}"
+        f"&interval={interval}&startTime={cursor}&endTime={end_ms}&limit=1000")
+   try:
+    with urlopen(Request(url,headers={"User-Agent":"CryptoAlert-PaperForward/7.4"}),timeout=30) as r:
+     rows=json.loads(r.read().decode())
+    break
+   except HTTPError as e:
+    last_error=e
+    if e.code not in (403,404,429,451): raise
+  if rows is None:
+   raise RuntimeError(f"Binance API unavailable: {last_error}")
   if not rows: break
   for x in rows:
    t=int(x[0]); dt=datetime.fromtimestamp(t/1000,timezone.utc)
