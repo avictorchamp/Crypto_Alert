@@ -1,0 +1,42 @@
+name: V7.5 Regime Filter Experiment
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  regime-filter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.5 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-5-regime-filter
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run V7.5 regime filter experiment
+        run: python v7_5_regime_filter.py > v7_5_regime_filter.log
+      - name: Validate V7.5 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v7_5_regime_filter_results.json"))
+          assert d["production_changed"] is False
+          assert d["fold_count"] == 4
+          assert len(d["folds"]) == 4
+          assert len(d["selected_variants_by_fold"]) == 4
+          print("V7.5 VALIDATION PASSED")
+          print("selected:", d["selected_variants_by_fold"])
+          print("selected_pass:", d["selected_pass_by_fold"])
+          print("baseline_pass:", d["baseline_pass_by_fold"])
+          PY
+      - name: Upload V7.5 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-5-regime-filter-results
+          path: |
+            v7_5_regime_filter_results.json
+            v7_5_regime_filter.log
