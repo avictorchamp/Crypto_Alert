@@ -1,0 +1,40 @@
+name: V7.4 Multi-Coin Gate Sensitivity Experiment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.4 sensitivity branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-4-gate-sensitivity
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run gate sensitivity experiment
+        run: python v7_4_gate_sensitivity.py
+      - name: Validate experiment
+        run: |
+          test -s v7_4_gate_sensitivity_results.json
+          python - <<'PY'
+          import json
+          p=json.load(open("v7_4_gate_sensitivity_results.json"))
+          assert p["production_changed"] is False
+          assert set(p["results"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          assert set(p["variants"]) == {"baseline","price_relaxed","volume_relaxed","price_only","volume_only","both_relaxed"}
+          for s,r in p["results"].items():
+              assert "error" not in r
+              assert set(r["variants"]) == set(p["variants"])
+          print("V7.4 GATE SENSITIVITY VALIDATION PASSED")
+          PY
+      - name: Upload experiment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-4-gate-sensitivity-results
+          path: v7_4_gate_sensitivity_results.json
