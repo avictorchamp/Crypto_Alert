@@ -1,0 +1,39 @@
+name: V7.4 Cross-Coin Gate Robustness Experiment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  robustness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.4 robustness branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-4-cross-coin-robustness
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run cross-coin robustness experiment
+        run: python v7_4_cross_coin_robustness.py
+      - name: Validate robustness experiment
+        run: |
+          test -s v7_4_cross_coin_robustness_results.json
+          python - <<'PY'
+          import json
+          p=json.load(open("v7_4_cross_coin_robustness_results.json"))
+          assert p["production_changed"] is False
+          assert p["shared_variant"] in p["targets"] or p["shared_variant"] in p["coin_specific_variants"].values() or p["shared_variant"] in p["shared_training"]
+          assert set(p["coin_specific_variants"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          assert set(p["coin_specific_holdout"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          assert set(p["baseline_holdout"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          print("V7.4 CROSS-COIN ROBUSTNESS VALIDATION PASSED")
+          PY
+      - name: Upload robustness artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-4-cross-coin-robustness-results
+          path: v7_4_cross_coin_robustness_results.json
