@@ -1,4 +1,5 @@
 name: V7.5 Regime Filter Experiment
+# research-only runner; production strategy files are not modified
 on:
   workflow_dispatch:
   push:
