@@ -1,0 +1,38 @@
+name: V7.4 Walk-Forward Robustness Experiment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  walk-forward:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.4 walk-forward research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-4-walk-forward-robustness
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run walk-forward robustness experiment
+        run: python v7_4_walk_forward_robustness.py
+      - name: Validate walk-forward experiment
+        run: |
+          test -s v7_4_walk_forward_robustness_results.json
+          python - <<'PY'
+          import json
+          p=json.load(open("v7_4_walk_forward_robustness_results.json"))
+          assert p["production_changed"] is False
+          assert p["fold_count"] == 4
+          assert set(p["coin_specific_pass_count"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          assert len(p["folds"]) == 4
+          print("V7.4 WALK-FORWARD ROBUSTNESS VALIDATION PASSED")
+          PY
+      - name: Upload walk-forward artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-4-walk-forward-robustness-results
+          path: v7_4_walk_forward_robustness_results.json
