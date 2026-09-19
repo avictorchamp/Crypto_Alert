@@ -3,6 +3,8 @@ name: V7.4 Multi-Coin Gate Sensitivity Experiment
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
