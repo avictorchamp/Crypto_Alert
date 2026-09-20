@@ -12,7 +12,7 @@ jobs:
       - name: Checkout V7.6 research branch
         uses: actions/checkout@v4
         with:
-          ref: research/v7-6-coin-fingerprint
+          ref: ${{ github.head_ref || 'research/v7-6-coin-fingerprint' }}
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
