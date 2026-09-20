@@ -71,8 +71,6 @@ def learn_patterns(rows):
         for f in ("h1_trend","d1_trend","btc_regime"):
             key.append((f,str(r["features"][f])))
         candidates.append((r,tuple(key)))
-    for f,b in set(x[1][0:1] for x in candidates):
-        pass
     # One-feature and two-feature patterns; require enough support.
     for f in numeric:
         for b in range(4):
@@ -84,7 +82,7 @@ def learn_patterns(rows):
         if a in numeric and b in numeric:
             for ia in range(4):
                 for ib in range(4):
-                    labels.append(((a,ia),(b,ib),lambda r,a=a,b=b,ia=ia,ib=ib: bucket(r["features"][a],edges[a])==ia and bucket(r["features"][b],edges[b])==ib))
+                    labels.append((((a,ia),(b,ib)),lambda r,a=a,b=b,ia=ia,ib=ib: bucket(r["features"][a],edges[a])==ia and bucket(r["features"][b],edges[b])==ib))
     patterns=[]
     for label,fn in labels:
         matched=[r for r in rows if fn(r)]
