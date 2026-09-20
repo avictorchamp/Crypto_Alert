@@ -168,3 +168,5 @@ def main():
          "results":results}
     open("v7_6_coin_fingerprint_results.json","w").write(json.dumps(out,indent=2));print(json.dumps(out,indent=2))
 if __name__=="__main__":main()
+
+# V7.6 trigger verification
