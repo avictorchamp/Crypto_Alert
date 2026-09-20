@@ -1,0 +1,42 @@
+name: V7.6 Coin Fingerprint Experiment
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.6 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-6-coin-fingerprint
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run V7.6 coin fingerprint experiment
+        run: python v7_6_coin_fingerprint.py > v7_6_coin_fingerprint.log
+      - name: Validate V7.6 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v7_6_coin_fingerprint_results.json"))
+          assert d["production_changed"] is False
+          assert d["targets"] == ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"]
+          assert d["split_rule"].startswith("chronological")
+          assert all(len(d["results"][s]["top_training_patterns"]) > 0 for s in d["targets"])
+          print("V7.6 VALIDATION PASSED")
+          for s in d["targets"]:
+              r=d["results"][s]
+              print(s, "events=",r["events"], "test=",r["split"]["unseen_test"], "patterns=",len(r["top_training_patterns"]))
+          PY
+      - name: Upload V7.6 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-6-coin-fingerprint-results
+          path: |
+            v7_6_coin_fingerprint_results.json
+            v7_6_coin_fingerprint.log
