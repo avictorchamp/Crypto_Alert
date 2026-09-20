@@ -4,17 +4,26 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   exact-production:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout V7.9 research branch
         uses: actions/checkout@v4
-        with: {ref: ${{ github.head_ref || 'research/v7-9-exact-production-walk-forward' }}}
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup Python
         uses: actions/setup-python@v5
-        with: {python-version: "3.11"}
+        with:
+          python-version: "3.11"
       - name: Run V7.9 exact production walk-forward
         run: python v7_9_exact_production_walk_forward.py
       - name: Validate V7.9 result
