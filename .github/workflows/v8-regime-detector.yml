@@ -1,0 +1,34 @@
+name: V8 Regime Detector Experiment
+on:
+  push:
+    branches: [research/v8-regime-detector]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  regime-detector:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V8 research branch
+        uses: actions/checkout@v4
+        with: {ref: ${{ github.head_ref || 'research/v8-regime-detector' }}}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run V8 regime detector
+        run: python v8_regime_detector.py
+      - name: Validate V8 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v8_regime_detector_results.json"))
+          assert d["production_changed"] is False
+          assert len(d["results"]) == 4
+          assert all(v["production_buy_signals"] >= 0 for v in d["results"].values())
+          print("V8 VALIDATION PASSED")
+          PY
+      - name: Upload V8 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-regime-detector-results
+          path: v8_regime_detector_results.json
