@@ -9,6 +9,7 @@ jobs:
   exact-production:
     runs-on: ubuntu-latest
     steps:
+      # Research-only trigger refresh; production strategy unchanged.
       - name: Checkout V7.9 research branch
         uses: actions/checkout@v4
         with: {ref: ${{ github.head_ref || 'research/v7-9-exact-production-walk-forward' }}}
