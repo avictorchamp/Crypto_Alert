@@ -136,6 +136,21 @@ def apply_patterns(rows,learned):
                         "avg_close":sum(r["outcomes"][h]["close"] for r in matched)/len(matched)})
     return out
 
+def production_gate(h,d,i):
+    p,e20,e50,r,sup,res,avg,vol,va=feat(h,i)
+    mid=(sup+sup*1.005)/2
+    rr=(res-mid)/(mid-sup*.99) if sup>0 else 0
+    return daily_regime(d,h[i]["t"])=="BULL" and p>avg*1.01 and vol>=1.5*va and rr>=1
+
+def gate_summary(h,d,rows):
+    ts={r["t"]:r for r in rows}
+    selected=[]
+    for i in range(60,len(h)-73):
+        r=ts.get(h[i]["t"])
+        if r is not None and production_gate(h,d,i):
+            selected.append(r)
+    return summarize(selected) if selected else {str(x):{"n":0,"up_rate":None,"down_rate":None,"avg_close":None} for x in HORIZONS}
+
 def summarize(rows):
     return {str(h):{"n":len(rows),"up_rate":sum(r["outcomes"][str(h)]["max"]>=.02 for r in rows)/len(rows),
                     "down_rate":sum(r["outcomes"][str(h)]["min"]<=-.02 for r in rows)/len(rows),
@@ -152,8 +167,11 @@ def main():
         learned=learn_patterns(train)
         valid_patterns=apply_patterns(valid,learned)
         test_patterns=apply_patterns(test,learned)
+        h=fetch(H,s,start,end); d=fetch(D,s,start,end)
+        test_gate=gate_summary(h,d,test)
         results[s]={"events":n,"split":{"train":len(train),"validation":len(valid),"unseen_test":len(test)},
                     "overall":summarize(rows),"train":summarize(train),"validation":summarize(valid),"unseen_test":summarize(test),
+                    "unseen_test_production_gate":test_gate,
                     "top_training_patterns":learned["patterns"][:10],
                     "validation_pattern_results":valid_patterns,
                     "unseen_pattern_results":test_patterns}
