@@ -109,3 +109,5 @@ def main():
     open("v7_8_regime_coin_pattern_results.json","w").write(json.dumps(out,indent=2))
     print(json.dumps(out,indent=2))
 if __name__=="__main__": main()
+
+# V7.8 trigger verification
