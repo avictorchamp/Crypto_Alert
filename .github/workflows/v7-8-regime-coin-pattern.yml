@@ -1,0 +1,35 @@
+name: V7.8 Regime x Coin Pattern Experiment
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  regime-coin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.8 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || 'research/v7-8-regime-coin-pattern' }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run V7.8 regime x coin experiment
+        run: python v7_8_regime_coin_pattern.py
+      - name: Validate V7.8 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v7_8_regime_coin_pattern_results.json"))
+          assert d["production_changed"] is False
+          assert len(d["results"]) == 4
+          assert all(len(x["folds"]) == 4 for x in d["results"].values())
+          print("V7.8 VALIDATION PASSED")
+          PY
+      - name: Upload V7.8 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-8-regime-coin-pattern-results
+          path: v7_8_regime_coin_pattern_results.json
