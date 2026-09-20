@@ -1,0 +1,34 @@
+name: V7.9 Exact Production Gate Walk-Forward
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  exact-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.9 research branch
+        uses: actions/checkout@v4
+        with: {ref: ${{ github.head_ref || 'research/v7-9-exact-production-walk-forward' }}}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run V7.9 exact production walk-forward
+        run: python v7_9_exact_production_walk_forward.py
+      - name: Validate V7.9 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v7_9_exact_production_results.json"))
+          assert d["production_changed"] is False
+          assert len(d["results"]) == 4
+          assert all(len(v["folds"]) == 4 for v in d["results"].values())
+          print("V7.9 VALIDATION PASSED")
+          PY
+      - name: Upload V7.9 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-9-exact-production-results
+          path: v7_9_exact_production_results.json
