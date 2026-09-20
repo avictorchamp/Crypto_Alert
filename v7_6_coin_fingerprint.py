@@ -74,10 +74,10 @@ def learn_patterns(rows):
     # One-feature and two-feature patterns; require enough support.
     for f in numeric:
         for b in range(4):
-            labels.append(((f,b),lambda r,f=f,b=b: bucket(r["features"][f],edges[f])==b))
+            labels.append((((f,b),),lambda r,f=f,b=b: bucket(r["features"][f],edges[f])==b))
     for f in ("h1_trend","d1_trend","btc_regime"):
         vals=sorted(set(str(r["features"][f]) for r in rows))
-        for v in vals: labels.append(((f,v),lambda r,f=f,v=v: str(r["features"][f])==v))
+        for v in vals: labels.append((((f,v),),lambda r,f=f,v=v: str(r["features"][f])==v))
     for a,b in ((("rsi"),("vol_ratio")),(("momentum_20"),("vol_ratio")),(("ema_distance"),("h1_trend")),(("rsi"),("h1_trend"))):
         if a in numeric and b in numeric:
             for ia in range(4):
