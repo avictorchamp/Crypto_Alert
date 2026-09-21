@@ -88,3 +88,5 @@ if __name__=="__main__":
     main()
 
 # trigger V8.2 research validation
+
+# retrigger after adding research data helper
