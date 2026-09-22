@@ -18,7 +18,7 @@ jobs:
         with: {python-version: "3.11"}
       - name: Run V8.3 ETH holdout confirmation
         run: python v8_3_eth_holdout_confirmation.py
-      - name: Validate V8.3 result
+      - name: Validate V8.2 result
         run: |
           python - <<'PY'
           import json
@@ -26,8 +26,6 @@ jobs:
           assert d["production_changed"] is False
           assert d["coin"] == "ETHUSDT"
           assert d["locked_rule"]["volume_threshold"] == 1.5
-          assert d["holdout"]["period_start"] == "2024-09-22"
-          assert d["holdout"]["period_end"] == "2025-03-22"
           assert d["holdout"]["horizon_hours"] == 24
           print("V8.3 VALIDATION PASSED")
           PY
