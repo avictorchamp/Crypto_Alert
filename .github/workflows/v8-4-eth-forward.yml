@@ -71,3 +71,5 @@ jobs:
           name: v8-4-eth-forward-results
           path: v8_4_eth_forward_log.json
           if-no-files-found: error
+
+# V8.4 trigger verification
