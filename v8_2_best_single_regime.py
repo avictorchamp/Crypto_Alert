@@ -90,3 +90,5 @@ if __name__=="__main__":
 # trigger V8.2 research validation
 
 # retrigger after adding research data helper
+
+# trigger diagnostic sync
