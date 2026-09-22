@@ -23,3 +23,5 @@ out={"version":"8.3.0-eth-untouched-holdout","production_changed":False,"coin":C
 open("v8_3_eth_holdout_results.json","w").write(json.dumps(out,indent=2)); print(json.dumps(out,indent=2))
 
 # V8.4 forward validation trigger marker
+
+# trigger V8.4 permission fix verification
