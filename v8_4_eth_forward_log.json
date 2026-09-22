@@ -1,0 +1,38 @@
+{
+  "version": "8.4.0-eth-forward-paper",
+  "production_changed": false,
+  "symbol": "ETHUSDT",
+  "horizon_hours": 24,
+  "locked_rule": {
+    "strategy": "exact production BUY SETUP or STRONG BUY",
+    "volume_condition": "volume_ratio > 1.5",
+    "volume_threshold": 1.5
+  },
+  "observations": [
+    {
+      "signal_time_utc": "2026-09-22T00:00:00+00:00",
+      "signal_candle_close_ms": 1790035200000,
+      "price": 2777.14,
+      "signal": "WAIT",
+      "confidence": 50,
+      "quality_score": 50,
+      "risk_reward": 10.84,
+      "volume_ratio": 0.388961369663448,
+      "momentum_6h": 0.0128745659848859,
+      "locked_entry": false,
+      "status": "NO_TRADE"
+    }
+  ],
+  "latest_signal_utc": "2026-09-22T00:00:00+00:00",
+  "last_run_utc": "2026-09-22T00:39:08.399168+00:00",
+  "candles_1h_completed": 119,
+  "summary": {
+    "closed_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate_pct": null,
+    "expectancy_pct": null,
+    "profit_factor": null,
+    "open_trades": 0
+  }
+}
