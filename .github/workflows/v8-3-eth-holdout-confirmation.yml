@@ -1,0 +1,38 @@
+name: V8.3 ETH Untouched Holdout Confirmation
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  eth-holdout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V8.3 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run V8.3 ETH holdout confirmation
+        run: python v8_3_eth_holdout_confirmation.py
+      - name: Validate V8.3 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v8_3_eth_holdout_results.json"))
+          assert d["production_changed"] is False
+          assert d["coin"] == "ETHUSDT"
+          assert d["locked_rule"]["volume_threshold"] == 1.5
+          assert d["holdout"]["period_start"] == "2024-09-22"
+          assert d["holdout"]["period_end"] == "2025-03-22"
+          assert d["holdout"]["horizon_hours"] == 24
+          print("V8.3 VALIDATION PASSED")
+          PY
+      - name: Upload V8.3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-3-eth-holdout-results
+          path: v8_3_eth_holdout_results.json
