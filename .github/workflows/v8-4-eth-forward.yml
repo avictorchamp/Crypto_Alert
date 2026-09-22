@@ -1,0 +1,73 @@
+name: V8.4 ETH Forward Paper Validation
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v8-4-eth-forward
+  cancel-in-progress: false
+
+jobs:
+  eth-forward:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout V8.4 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v8-4-eth-forward
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run V8.4 ETH forward paper snapshot
+        run: python v8_4_eth_forward_paper.py
+
+      - name: Validate V8.4 result
+        run: |
+          test -s v8_4_eth_forward_log.json
+          python - <<'PY'
+          import json
+          with open('v8_4_eth_forward_log.json', encoding='utf-8') as f:
+              d=json.load(f)
+          assert d['version']=='8.4.0-eth-forward-paper'
+          assert d['production_changed'] is False
+          assert d['symbol']=='ETHUSDT'
+          assert d['locked_rule']['volume_threshold']==1.5
+          assert d['locked_rule']['volume_condition']=='volume_ratio > 1.5'
+          assert d['horizon_hours']==24
+          assert isinstance(d['observations'],list)
+          assert isinstance(d['summary'],dict)
+          print('V8.4 ETH FORWARD PAPER VALIDATION PASSED')
+          print('observations =',len(d['observations']))
+          print('latest_signal_utc =',d.get('latest_signal_utc'))
+          print('summary =',d['summary'])
+          PY
+
+      - name: Persist V8.4 cumulative paper log
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add v8_4_eth_forward_log.json
+          if git diff --cached --quiet; then
+            echo 'No V8.4 paper log changes.'
+          else
+            git commit -m 'chore: update V8.4 ETH forward paper log'
+            git push origin HEAD:research/v8-4-eth-forward
+          fi
+
+      - name: Upload V8.4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-4-eth-forward-results
+          path: v8_4_eth_forward_log.json
+          if-no-files-found: error
