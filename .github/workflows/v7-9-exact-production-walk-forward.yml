@@ -71,3 +71,50 @@ jobs:
         with:
           name: v8-3-eth-holdout-results
           path: v8_3_eth_holdout_results.json
+
+  eth-forward-v84:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V8.4 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v8-4-eth-forward
+          fetch-depth: 1
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run V8.4 ETH forward paper validation
+        run: python v8_4_eth_forward_paper.py
+      - name: Validate V8.4 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v8_4_eth_forward_log.json"))
+          assert d["production_changed"] is False
+          assert d["symbol"] == "ETHUSDT"
+          assert d["locked_rule"]["volume_threshold"] == 1.5
+          assert d["locked_rule"]["volume_condition"] == "volume_ratio > 1.5"
+          assert d["horizon_hours"] == 24
+          print("V8.4 VALIDATION PASSED")
+          print("observations =", len(d["observations"]))
+          print("summary =", d["summary"])
+          PY
+      - name: Persist V8.4 cumulative paper log
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add v8_4_eth_forward_log.json
+          if git diff --cached --quiet; then
+            echo 'No V8.4 paper log changes.'
+          else
+            git commit -m 'chore: update V8.4 ETH forward paper log'
+            git push origin HEAD:research/v8-4-eth-forward
+          fi
+      - name: Upload V8.4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v8-4-eth-forward-results
+          path: v8_4_eth_forward_log.json
