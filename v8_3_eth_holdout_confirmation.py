@@ -81,3 +81,5 @@ if __name__=="__main__":
 # verified trigger sync
 
 # trigger via verified V8.2 workflow
+
+# trigger verified V7.9 workflow path
