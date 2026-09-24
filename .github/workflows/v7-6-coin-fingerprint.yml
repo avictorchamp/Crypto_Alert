@@ -40,3 +40,5 @@ jobs:
           path: |
             v7_6_coin_fingerprint_results.json
             v7_6_coin_fingerprint.log
+
+# Trigger V7.6 after research parser fix
