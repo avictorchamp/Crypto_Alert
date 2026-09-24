@@ -118,11 +118,14 @@ def eval_pattern(rows,p):
 def apply_patterns(rows,learned):
     edges=learned["edges"]; out=[]
     for p in learned["patterns"][:10]:
+        label=p["label"]
+        # A one-feature label is stored as (feature, value);
+        # a multi-feature label is stored as ((feature, value), (...)).
+        conditions=[label] if isinstance(label, (list, tuple)) and len(label)==2 and isinstance(label[0], str) else list(label)
         matched=[]
         for r in rows:
             ok=True
-            for item in p["label"]:
-                f,v=item
+            for f,v in conditions:
                 if f in ("h1_trend","d1_trend","btc_regime"):
                     ok &= str(r["features"][f])==str(v)
                 else:
