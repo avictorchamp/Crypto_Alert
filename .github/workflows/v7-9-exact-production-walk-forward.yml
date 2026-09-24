@@ -19,7 +19,7 @@ jobs:
       - name: Checkout V7.9 research branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: research/v7-9-exact-production-walk-forward
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
