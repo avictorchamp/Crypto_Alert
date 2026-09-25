@@ -99,7 +99,7 @@ def learn_patterns(rows):
                        "down_rate":sum(r["outcomes"][horizon]["min"]<=-.02 for r in rows)/len(rows),
                        "avg_close":sum(r["outcomes"][horizon]["close"] for r in rows)/len(rows)}
     patterns.sort(key=lambda x:(abs(x["up_rate"]-base[str(x["horizon"])]["up_rate"])+abs(x["down_rate"]-base[str(x["horizon"])]["down_rate"]),x["n"]),reverse=True)
-    return {"edges":edges,"baseline":base,"patterns":patterns[:30]}
+    return {"edges":edges,"baseline":base,"patterns":patterns}
 
 def eval_pattern(rows,p):
     label=p["label"]; horizon=str(p["horizon"])
