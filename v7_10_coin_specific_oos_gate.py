@@ -127,6 +127,6 @@ def main():
     }
     with open("v7_10_coin_specific_oos_gate_results.json","w") as f: json.dump(out,f,indent=2)
     print(json.dumps(out,indent=2))
-    print("V7.10 RESEARCH GATE COMPLETED")
+    print("V7.10 RESEARCH GATE COMPLETED")\n    print("OOS_CANDIDATES:", total)
     print("PRODUCTION_CHANGED=False")
 if __name__=="__main__": main()
