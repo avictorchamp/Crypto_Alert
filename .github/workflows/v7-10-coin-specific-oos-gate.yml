@@ -40,7 +40,7 @@ jobs:
           assert r["production_changed"] is False
           assert r["version"] == "7.10.0-coin-specific-oos-gate"
           assert set(r["targets"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
-          assert "unseen chronological test" in r["gate_rule"]
+          assert "unseen_test" in r["results"][r["targets"][0]]["split"]
           print("V7.10 VALIDATION PASSED")
           print("coins_with_oos_candidates:", r["coins_with_oos_candidates"])
           print("total_oos_candidates:", r["total_oos_candidates"])
