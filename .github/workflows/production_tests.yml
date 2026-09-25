@@ -1,4 +1,5 @@
 name: Production Crypto Alert Tests
+# V7.10 research gate is executed in coin-specific-oos-gate
 
 on:
   push:
