@@ -1,0 +1,48 @@
+name: V7.13 Shadow Signal Simulation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  shadow-simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-13-shadow-signal-simulation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run V7.13 shadow simulation
+        run: python v7_13_shadow_signal_simulation.py
+
+      - name: Validate research-only invariant
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open("v7_13_shadow_signal_results.json"))
+          assert r["production_changed"] is False
+          assert r["mode"] == "SHADOW"
+          assert r["integration_status"] == "NOT_LIVE"
+          assert r["forward_days"] == 90
+          assert set(r["results"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          print("V7.13 VALIDATION PASSED")
+          print("signals:", r["total_forward_signal_observations"])
+          print("qualified_20:", r["qualified_20_signal_rules"])
+          print("qualified_10:", r["qualified_10_signal_rules"])
+          PY
+
+      - name: Upload V7.13 results
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-13-shadow-signal-results
+          path: v7_13_shadow_signal_results.json
