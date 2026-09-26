@@ -1,0 +1,41 @@
+name: V7.12 Shadow Forward Gate
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+jobs:
+  shadow-forward:
+    name: shadow-forward
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-12-shadow-forward-gate
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run V7.12 shadow forward gate
+        run: python v7_12_shadow_forward_gate.py
+      - name: Validate research-only invariant
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open("v7_12_shadow_forward_results.json"))
+          assert r["production_changed"] is False
+          assert r["mode"]=="SHADOW"
+          assert r["integration_status"]=="NOT_LIVE"
+          assert set(r["results"])=={"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          print("V7.12 VALIDATION PASSED")
+          print("forward observations:",r["total_forward_signal_observations"])
+          print("qualified:",r["qualified_observations"])
+          PY
+      - name: Upload V7.12 results
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-12-shadow-forward-results
+          path: v7_12_shadow_forward_results.json
