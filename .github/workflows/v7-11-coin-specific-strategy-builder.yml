@@ -1,0 +1,49 @@
+name: V7.11 Coin-Specific Strategy Builder
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+jobs:
+  strategy-builder:
+    name: strategy-builder
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          ref: research/v7-11-coin-specific-strategy-builder
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run V7.11 strategy builder
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+        run: python v7_11_coin_specific_strategy_builder.py
+      - name: Validate research-only invariant
+        run: |
+          python - <<'PY'
+          import json
+          with open("v7_11_coin_specific_strategy_results.json") as f:
+              r=json.load(f)
+          assert r["production_changed"] is False
+          assert r["version"] == "7.11.0-coin-specific-strategy-builder"
+          assert r["mode"] == "SHADOW"
+          assert r["integration_status"] == "NOT_LIVE"
+          assert set(r["targets"]) == {"BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT"}
+          assert r["total_shadow_rules"] <= 8
+          print("V7.11 VALIDATION PASSED")
+          print("total_shadow_rules:", r["total_shadow_rules"])
+          PY
+      - name: Upload V7.11 results
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-11-coin-specific-strategy-results
+          path: v7_11_coin_specific_strategy_results.json
