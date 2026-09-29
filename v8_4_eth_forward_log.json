@@ -580,10 +580,23 @@
       "momentum_6h": 0.01660589965190251,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-09-29T15:00:00+00:00",
+      "signal_candle_close_ms": 1790694000000,
+      "price": 2712.24,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 75,
+      "risk_reward": 2.76,
+      "volume_ratio": 1.2021077878838233,
+      "momentum_6h": 0.0019875427617237484,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-09-29T08:00:00+00:00",
-  "last_run_utc": "2026-09-29T08:19:49.564915+00:00",
+  "latest_signal_utc": "2026-09-29T15:00:00+00:00",
+  "last_run_utc": "2026-09-29T15:40:06.162024+00:00",
   "candles_1h_completed": 119,
   "summary": {
     "closed_trades": 0,
