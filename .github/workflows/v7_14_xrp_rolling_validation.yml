@@ -1,0 +1,32 @@
+name: V7.14 XRP Rolling Validation
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  xrp-rolling-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/v7-14-xrp-rolling-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run V7.14 XRP rolling validation
+        run: python v7_14_xrp_rolling_validation.py
+      - name: Validate V7.14 invariants
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open("v7_14_xrp_rolling_results.json"))
+          assert r["production_changed"] is False
+          assert r["mode"]=="SHADOW" and r["integration_status"]=="NOT_LIVE"
+          assert r["symbol"]=="XRPUSDT" and r["windows"]==3 and r["window_days"]==30
+          print("V7.14 VALIDATION PASSED")
+          print("qualified_rules:",r["qualified_rules"])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7-14-xrp-rolling-results
+          path: v7_14_xrp_rolling_results.json
