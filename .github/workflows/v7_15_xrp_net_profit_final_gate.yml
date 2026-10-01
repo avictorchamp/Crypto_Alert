@@ -1,0 +1,36 @@
+name: V7.15 XRP Net Profit Final Gate
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  xrp-final-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/v7-15-xrp-net-profit-final-gate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run V7.15 final gate
+        run: python v7_15_xrp_net_profit_final_gate.py
+      - name: Validate invariant
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('v7_15_xrp_net_profit_results.json'))
+          assert r['production_changed'] is False
+          assert r['integration_status']=='NOT_LIVE'
+          assert r['symbol']=='XRPUSDT' and r['horizon_hours']==48
+          print('V7.15 VALIDATION PASSED')
+          print('final_gate_passed:',r['final_gate_passed'])
+          print('trades:',r['trades'])
+          print('net_win_rate:',r['net_win_rate'])
+          print('net_avg_return_per_trade:',r['net_avg_return_per_trade'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7-15-xrp-net-profit-results
+          path: v7_15_xrp_net_profit_results.json
