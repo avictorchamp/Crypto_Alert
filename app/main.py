@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.crypto.price import get_market\nfrom app.crypto.xrp_v715_live import process_xrp_live, FROZEN_EDGES
+from app.crypto.price import get_market
+from app.crypto.xrp_v715_live import process_xrp_live, FROZEN_EDGES
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
 
