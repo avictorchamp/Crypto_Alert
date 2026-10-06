@@ -1,0 +1,31 @@
+name: V7.18 SOL Final Gates
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/v7-18-sol-final-gates.yml"]
+  workflow_dispatch:
+jobs:
+  sol-final-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/v7-18-sol-final-gates
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install requests
+      - name: Run SOL rolling and net-cost gates
+        run: python v7_18_sol_final_gates.py
+      - name: Validate final result
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("v7_18_sol_final_results.json"))
+          print("SOL final_gate_passed:",x["final_gate_passed"])
+          print("trades:",x["trades"],"net_win_rate:",x["net_win_rate"],"net_avg_return:",x["net_avg_return"])
+          assert x["production_changed"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7-18-sol-final-results
+          path: v7_18_sol_final_results.json
