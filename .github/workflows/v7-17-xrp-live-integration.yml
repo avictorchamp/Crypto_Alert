@@ -3,21 +3,36 @@ on:
   push:
     branches: [main]
     paths:
-      - "app/crypto/xrp_v715_live.py"\n      - "app/main.py"\n      - "app/crypto/price.py"
+      - "app/crypto/xrp_v715_live.py"
+      - "app/main.py"
+      - "app/crypto/price.py"
       - ".github/workflows/v7-17-xrp-live-integration.yml"
+  workflow_dispatch:
 jobs:
   xrp-live-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
+        with:
+          python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: Validate V7.15 bucket semantics and cooldown
+      - name: Validate frozen V7.15 bucket semantics and alert safety
         run: |
           python - <<'PY'
           from app.crypto import xrp_v715_live as x
-          def c(p,v): return [0,0,0,0,str(p),str(v)]
-          e=x.FROZEN_EDGES\n          assert e["momentum_20"][1] == -0.02519325696190744\n          assert e["vol_ratio"][3] == 1.2366720351063054\n          f={"price":1,"momentum_20":-0.03,"vol_ratio":1.5}\n          ok,b=x.evaluate(f,e)\n          assert ok and b=={"momentum_20_bucket":0,"vol_ratio_bucket":3}\n          candles=[c(1.0-(i*0.002),100 if i<99 else 200) for i in range(100)]\n          r=x.process_xrp_live(candles,e,now=1,send=False)\n          assert r["automatic_trading"] is False
-          print('V7.17 LIVE INTEGRATION VALIDATION PASSED')
+          def c(p,v):
+              return [0,0,0,0,str(p),str(v)]
+          e=x.FROZEN_EDGES
+          assert e["momentum_20"][1] == -0.02519325696190744
+          assert e["vol_ratio"][3] == 1.2366720351063054
+          ok,b=x.evaluate({"price":1,"momentum_20":-0.03,"vol_ratio":1.5},e)
+          assert ok
+          assert b=={"momentum_20_bucket":0,"vol_ratio_bucket":3}
+          no,_=x.evaluate({"price":1,"momentum_20":0.0,"vol_ratio":1.5},e)
+          assert not no
+          candles=[c(1.0-(i*0.002),100 if i<99 else 200) for i in range(100)]
+          r=x.process_xrp_live(candles,e,now=1,send=False)
+          assert r["automatic_trading"] is False
+          print("V7.17 LIVE INTEGRATION VALIDATION PASSED")
           PY
