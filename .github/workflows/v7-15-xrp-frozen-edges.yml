@@ -1,0 +1,20 @@
+name: V7.15 XRP Frozen Edges
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/v7-15-xrp-frozen-edges.yml"]
+  workflow_dispatch:
+jobs:
+  xrp-frozen-edges:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: research/v7-15-xrp-net-profit-final-gate}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install requests
+      - run: python export_v7_15_xrp_edges.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v7-15-xrp-frozen-edges
+          path: v7_15_xrp_frozen_edges.json
