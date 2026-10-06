@@ -111,7 +111,7 @@ def get_watchlist_symbols(dynamic_symbols):
 def get_monitor_symbols():
     dynamic = get_top_symbols()
     extra = get_watchlist_symbols(dynamic)
-    combined = list(dict.fromkeys(dynamic + extra))
+    combined = list(dict.fromkeys(dynamic + extra + ["XRPUSDT"]))
     return dynamic, extra, combined
 
 
