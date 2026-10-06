@@ -500,6 +500,19 @@
       "ema20": 1.5041006179416812,
       "ema50": 1.4957129095878965,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-10-05T23:00:00+00:00",
+      "signal_candle_close_ms": 1791241200000,
+      "signal": false,
+      "price": 1.5079,
+      "regime": "BULL",
+      "rsi": 48.117154811715544,
+      "volume_ratio": 0.10825926594442949,
+      "risk_reward": 0.5108276661756835,
+      "ema20": 1.5055211905600556,
+      "ema50": 1.5034927125907998,
+      "status": "NO_TRADE"
     }
   ],
   "production_changed": false,
@@ -514,8 +527,8 @@
     "max_drawdown_pct": 0.0,
     "open_trades": 0
   },
-  "last_run_utc": "2026-10-05T05:54:36.900143+00:00",
-  "latest_observation_utc": "2026-10-04T23:00:00+00:00",
-  "candles_1h": 3055,
-  "candles_1d": 128
+  "last_run_utc": "2026-10-06T06:32:58.834449+00:00",
+  "latest_observation_utc": "2026-10-05T23:00:00+00:00",
+  "candles_1h": 3080,
+  "candles_1d": 129
 }
