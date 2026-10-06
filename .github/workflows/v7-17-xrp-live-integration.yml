@@ -1,0 +1,30 @@
+name: V7.17 XRP Live Integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/crypto/xrp_v715_live.py"
+      - ".github/workflows/v7-17-xrp-live-integration.yml"
+jobs:
+  xrp-live-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - name: Validate V7.15 bucket semantics and cooldown
+        run: |
+          python - <<'PY'
+          from app.crypto import xrp_v715_live as x
+          def c(p,v): return [0,0,0,0,str(p),str(v)]
+          train=[c(100+i*.1,100+i%7) for i in range(200)]
+          e=x.derive_edges(train)
+          assert len(e['momentum_20'])==5 and len(e['vol_ratio'])==5
+          # Explicit bucket test proves IDs, not raw thresholds, drive matching.
+          f={'price':1,'momentum_20':e['momentum_20'][1]-1e-9,'vol_ratio':e['vol_ratio'][3]+1e-9}
+          ok,b=x.evaluate(f,e)
+          assert ok and b=={'momentum_20_bucket':0,'vol_ratio_bucket':3}
+          assert x.process_xrp_live(train[-100:],e,now=1,send=False)['automatic_trading'] is False
+          print('V7.17 LIVE INTEGRATION VALIDATION PASSED')
+          PY
