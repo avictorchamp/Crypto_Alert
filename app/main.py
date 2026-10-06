@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.crypto.price import get_market\nfrom app.crypto.xrp_v715_live import process_xrp_live, derive_edges
+from app.crypto.price import get_market\nfrom app.crypto.xrp_v715_live import process_xrp_live, FROZEN_EDGES
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
 
@@ -92,7 +92,7 @@ last_watchlist_result = []
 last_portfolio_result = []
 last_portfolio_alert_result = {}
 
-last_watchlist_memory = {}\nxrp_v715_edges = None\nxrp_v715_edges_at = 0.0
+last_watchlist_memory = {}\nxrp_v715_edges = FROZEN_EDGES
 
 state_lock = threading.Lock()
 scan_lock = threading.Lock()
