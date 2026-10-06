@@ -5,6 +5,12 @@ from app.telegram.bot import send_message
 COOLDOWN=48*3600
 _last_sent=0.0
 
+# Frozen from V7.15 chronological 20% training quartiles.
+FROZEN_EDGES={
+    "momentum_20":[-1e99,-0.02519325696190744,-0.0023048233667183338,0.022495549441657214,1e99],
+    "vol_ratio":[-1e99,0.5569127561680158,0.7924384285355551,1.2366720351063054,1e99],
+}
+
 def bucket(x, edges):
     for i in range(len(edges)-1):
         if edges[i] <= x <= edges[i+1]: return i
