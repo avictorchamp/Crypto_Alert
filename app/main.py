@@ -789,6 +789,7 @@ def run_watchlist_scan():
 
     results = []
     alerts_sent = []
+    xrp_live_status = {"enabled": True, "matched": False, "sent": False, "automatic_trading": False}
 
     for item in current_items:
 
@@ -835,11 +836,32 @@ def run_watchlist_scan():
         if alert.get("sent"):
             alerts_sent.append(coin)
 
+        # V7.15 validated XRP LONG 48h alert. Uses immutable frozen
+        # research edges; never recalibrates from the live 100-candle window.
+        if coin == "XRP":
+            try:
+                prices = item.get("prices", [])
+                volumes = item.get("volumes", [])
+                if len(prices) >= 21 and len(volumes) >= 21:
+                    candles = [[0, 0, 0, 0, p, v] for p, v in zip(prices, volumes)]
+                    xrp_live_status = process_xrp_live(candles, xrp_v715_edges)
+                    if xrp_live_status.get("sent"):
+                        alerts_sent.append("XRP-V7.15-LONG-48H")
+            except Exception as e:
+                xrp_live_status = {
+                    "enabled": True,
+                    "matched": False,
+                    "sent": False,
+                    "automatic_trading": False,
+                    "error": str(e),
+                }
+
     return {
         "status": "success",
         "count": len(results),
         "dynamic_count": len(current_items),
         "alerts_sent": alerts_sent,
+        "xrp_v715_live": xrp_live_status,
         "data": results,
         "watchlist_memory": memory,
     }
@@ -1421,6 +1443,11 @@ def status():
 
         "last_scan_error":
             last_scan_error,
+        "xrp_v715_live": {
+            "enabled": True,
+            "rule": "momentum_20 bucket 0 + vol_ratio bucket 3",
+            "automatic_trading": False,
+        },
     }
 
 
