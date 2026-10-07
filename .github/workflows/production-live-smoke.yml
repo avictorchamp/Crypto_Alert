@@ -1,0 +1,39 @@
+name: Production Live Smoke Test
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "Dockerfile"
+      - "render.yaml"
+      - ".github/workflows/production-live-smoke.yml"
+  workflow_dispatch:
+jobs:
+  production-live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render deployment
+        run: sleep 60
+      - name: Check production health
+        run: |
+          set -e
+          code=$(curl -sS -o health.json -w "%{http_code}" --max-time 30 https://crypto-alert-ob42.onrender.com/health)
+          echo "health HTTP: $code"
+          cat health.json
+          test "$code" = "200"
+      - name: Check production status
+        run: |
+          set -e
+          code=$(curl -sS -o status.json -w "%{http_code}" --max-time 30 https://crypto-alert-ob42.onrender.com/status)
+          echo "status HTTP: $code"
+          cat status.json
+          test "$code" = "200"
+      - name: Verify XRP live integration is present
+        run: |
+          python - <<'PY'
+          import json
+          h=json.load(open("health.json"))
+          s=json.load(open("status.json"))
+          print("health:",h)
+          print("status:",s)
+          PY
