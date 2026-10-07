@@ -1,0 +1,57 @@
+name: V7.16 XRP Alert Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      momentum_20:
+        description: XRP momentum_20 feature
+        required: true
+        default: "0.01"
+      vol_ratio:
+        description: XRP volume ratio feature
+        required: true
+        default: "3.2"
+
+jobs:
+  xrp-alert-production:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate alert-only runner and duplicate protection
+        shell: bash
+        run: |
+          rm -f /tmp/v716_state.json /tmp/v716_log.jsonl
+          export CRYPTO_ALERT_STATE=/tmp/v716_state.json
+          export CRYPTO_ALERT_LOG=/tmp/v716_log.jsonl
+          python - <<'PY'
+          import os
+          import v7_16_xrp_alert_production as a
+          os.environ['CRYPTO_ALERT_STATE']='/tmp/v716_state.json'
+          a.STATE_PATH=a.Path('/tmp/v716_state.json')
+          a.LOG_PATH=a.Path('/tmp/v716_log.jsonl')
+          features={'momentum_20': 0.01, 'vol_ratio': 3.2}
+          first=a.run_once(features, now=1000000)
+          second=a.run_once(features, now=1000060)
+          assert first['matched'] and first['emitted']
+          assert second['matched'] and not second['emitted'] and second['duplicate_suppressed']
+          assert first['order_execution'] is False
+          print('V7.16 ALERT-ONLY VALIDATION PASSED')
+          PY
+      - name: Run requested feature snapshot
+        env:
+          XRP_MOMENTUM_20: ${{ inputs.momentum_20 }}
+          XRP_VOL_RATIO: ${{ inputs.vol_ratio }}
+          CRYPTO_ALERT_STATE: /tmp/v716_live_state.json
+          CRYPTO_ALERT_LOG: /tmp/v716_live_log.jsonl
+        run: python v7_16_xrp_alert_production.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v7-16-xrp-alert-logs
+          path: /tmp/v716*_log.jsonl
+          if-no-files-found: warn
