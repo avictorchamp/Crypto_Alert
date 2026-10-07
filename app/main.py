@@ -93,7 +93,8 @@ last_watchlist_result = []
 last_portfolio_result = []
 last_portfolio_alert_result = {}
 
-last_watchlist_memory = {}\nxrp_v715_edges = FROZEN_EDGES
+last_watchlist_memory = {}
+xrp_v715_edges = FROZEN_EDGES
 
 state_lock = threading.Lock()
 scan_lock = threading.Lock()
