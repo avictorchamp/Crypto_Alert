@@ -1,0 +1,35 @@
+name: V7.7 Coin-Specific Strategy Validation
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  coin-specific:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout V7.7 research branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || 'research/v7-7-coin-specific-strategy' }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Run V7.7 coin-specific validation
+        run: python v7_7_coin_specific_strategy.py
+      - name: Validate V7.7 result
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("v7_7_coin_specific_strategy_results.json"))
+          assert d["production_changed"] is False
+          assert len(d["results"]) == 4
+          assert all(len(x["folds"]) == 4 for x in d["results"].values())
+          print("V7.7 VALIDATION PASSED")
+          PY
+      - name: Upload V7.7 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v7-7-coin-specific-strategy-results
+          path: v7_7_coin_specific_strategy_results.json
