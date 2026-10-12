@@ -49,6 +49,16 @@ def safe_float(
         return default
 
 
+def get_regime_status(position):
+    """Accept both monitor output (string) and legacy dict shape."""
+    market_regime = position.get("market_regime")
+    if isinstance(market_regime, dict):
+        return market_regime.get("status", "UNKNOWN")
+    if isinstance(market_regime, str) and market_regime.strip():
+        return market_regime.strip().upper()
+    return "UNKNOWN"
+
+
 def fmt(
     value,
     digits=6,
@@ -122,16 +132,7 @@ def classify_position(
         "position_state"
     )
 
-    market_regime = (
-        position.get(
-            "market_regime"
-        )
-        or {}
-    )
-
-    regime = market_regime.get(
-        "status"
-    )
+    regime = get_regime_status(position)
 
     quality = safe_float(
         position.get(
@@ -351,17 +352,7 @@ def build_message(
         "market_value"
     )
 
-    market_regime = (
-        position.get(
-            "market_regime"
-        )
-        or {}
-    )
-
-    regime = market_regime.get(
-        "status",
-        "UNKNOWN",
-    )
+    regime = get_regime_status(position)
 
     quality = position.get(
         "quality_score"
