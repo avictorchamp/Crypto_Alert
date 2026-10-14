@@ -8,8 +8,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.crypto.watchlist_memory import get_watchlist
 
 VERSION = "3.11.0"
-BINANCE_24HR_URL = "https://api.binance.com/api/v3/ticker/24hr"
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
+# Prefer Binance's dedicated public market-data host, then fall back to
+# the standard and alternate API hosts if a region/IP is blocked.
+BINANCE_MARKET_BASES = (
+    "https://data-api.binance.vision",
+    "https://api.binance.com",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com",
+)
+BINANCE_24HR_PATH = "/api/v3/ticker/24hr"
+BINANCE_KLINES_PATH = "/api/v3/klines"
 KLINE_INTERVAL = "1h"
 KLINE_LIMIT = 100
 MAX_WORKERS = 8
@@ -27,6 +36,30 @@ LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 _cached_symbols = []
 _cached_at = 0.0
 _last_market_status = {"status": "NOT_STARTED"}
+
+
+def get_json_with_fallback(path, params=None, timeout=15):
+    """Fetch public market data with endpoint failover.
+
+    Render egress IPs can receive HTTP 418 from api.binance.com. The
+    dedicated market-data endpoint and alternate Binance API hosts are
+    tried in order so one blocked hostname does not disable the scanner.
+    """
+    errors = []
+    for base in BINANCE_MARKET_BASES:
+        try:
+            response = requests.get(
+                f"{base}{path}",
+                params=params,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:
+            errors.append(f"{base}: {exc}")
+    raise RuntimeError(
+        "All Binance market-data endpoints failed: " + " | ".join(errors)
+    )
 
 
 def normalize_coin(coin):
@@ -60,9 +93,7 @@ def get_top_symbols():
     if _cached_symbols and now - _cached_at < UNIVERSE_REFRESH_SECONDS:
         return list(_cached_symbols)
     try:
-        response = requests.get(BINANCE_24HR_URL, timeout=15)
-        response.raise_for_status()
-        tickers = response.json()
+        tickers = get_json_with_fallback(BINANCE_24HR_PATH, timeout=15)
         if not isinstance(tickers, list):
             raise ValueError("Invalid Binance 24hr ticker response")
         candidates = []
@@ -116,13 +147,11 @@ def get_monitor_symbols():
 
 
 def get_symbol_market_data(symbol):
-    response = requests.get(
-        BINANCE_KLINES_URL,
+    candles = get_json_with_fallback(
+        BINANCE_KLINES_PATH,
         params={"symbol": symbol, "interval": KLINE_INTERVAL, "limit": KLINE_LIMIT},
         timeout=8,
     )
-    response.raise_for_status()
-    candles = response.json()
     if not isinstance(candles, list) or len(candles) < KLINE_LIMIT:
         raise ValueError(f"Not enough candles for {symbol}")
 
