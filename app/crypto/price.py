@@ -39,6 +39,15 @@ LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 _cached_symbols = []
 _cached_at = 0.0
 _last_market_status = {"status": "NOT_STARTED"}
+_binance_fallback_logged = False
+
+
+def log_binance_fallback_once(context):
+    """Avoid flooding production error logs while Binance is IP-banned."""
+    global _binance_fallback_logged
+    if not _binance_fallback_logged:
+        print(f"[MarketData] Binance unavailable; using Bybit spot fallback ({context}).")
+        _binance_fallback_logged = True
 
 
 def get_json_with_fallback(path, params=None, timeout=15):
@@ -118,7 +127,7 @@ def get_top_symbols():
         try:
             tickers = get_json_with_fallback(BINANCE_24HR_PATH, timeout=15)
         except Exception as binance_error:
-            print(f"Binance market data unavailable; using Bybit spot tickers: {binance_error}")
+            log_binance_fallback_once("ticker universe")
             bybit = get_bybit_json(
                 BYBIT_TICKERS_PATH,
                 params={"category": "spot"},
@@ -185,7 +194,7 @@ def get_symbol_market_data(symbol):
             timeout=8,
         )
     except Exception as binance_error:
-        print(f"Binance candles unavailable for {symbol}; using Bybit spot candles: {binance_error}")
+        log_binance_fallback_once("candles")
         bybit = get_bybit_json(
             BYBIT_KLINES_PATH,
             params={
