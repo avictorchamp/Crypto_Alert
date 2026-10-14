@@ -19,6 +19,9 @@ BINANCE_MARKET_BASES = (
 )
 BINANCE_24HR_PATH = "/api/v3/ticker/24hr"
 BINANCE_KLINES_PATH = "/api/v3/klines"
+BYBIT_BASE_URL = "https://api.bybit.com"
+BYBIT_TICKERS_PATH = "/v5/market/tickers"
+BYBIT_KLINES_PATH = "/v5/market/kline"
 KLINE_INTERVAL = "1h"
 KLINE_LIMIT = 100
 MAX_WORKERS = 8
@@ -57,9 +60,28 @@ def get_json_with_fallback(path, params=None, timeout=15):
             return response.json()
         except Exception as exc:
             errors.append(f"{base}: {exc}")
+            # Binance explicitly asks clients to back off after 418/429.
+            # Do not keep hitting alternate Binance hosts from the same IP.
+            status_code = getattr(response, "status_code", None) if "response" in locals() else None
+            if status_code in (418, 429):
+                break
     raise RuntimeError(
         "All Binance market-data endpoints failed: " + " | ".join(errors)
     )
+
+
+def get_bybit_json(path, params=None, timeout=15):
+    """Read public Bybit spot market data when Binance is IP-banned."""
+    response = requests.get(
+        f"{BYBIT_BASE_URL}{path}",
+        params=params,
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict) or data.get("retCode") != 0:
+        raise RuntimeError(f"Bybit market-data API error: {data}")
+    return data
 
 
 def normalize_coin(coin):
@@ -93,9 +115,18 @@ def get_top_symbols():
     if _cached_symbols and now - _cached_at < UNIVERSE_REFRESH_SECONDS:
         return list(_cached_symbols)
     try:
-        tickers = get_json_with_fallback(BINANCE_24HR_PATH, timeout=15)
+        try:
+            tickers = get_json_with_fallback(BINANCE_24HR_PATH, timeout=15)
+        except Exception as binance_error:
+            print(f"Binance market data unavailable; using Bybit spot tickers: {binance_error}")
+            bybit = get_bybit_json(
+                BYBIT_TICKERS_PATH,
+                params={"category": "spot"},
+                timeout=15,
+            )
+            tickers = bybit.get("result", {}).get("list", [])
         if not isinstance(tickers, list):
-            raise ValueError("Invalid Binance 24hr ticker response")
+            raise ValueError("Invalid market ticker response")
         candidates = []
         for ticker in tickers:
             if not isinstance(ticker, dict):
@@ -104,7 +135,7 @@ def get_top_symbols():
             if not symbol or not is_valid_symbol(symbol):
                 continue
             try:
-                volume = float(ticker.get("quoteVolume", 0))
+                volume = float(ticker.get("quoteVolume", ticker.get("turnover24h", 0)))
             except (TypeError, ValueError):
                 continue
             if volume > 0:
@@ -147,11 +178,26 @@ def get_monitor_symbols():
 
 
 def get_symbol_market_data(symbol):
-    candles = get_json_with_fallback(
-        BINANCE_KLINES_PATH,
-        params={"symbol": symbol, "interval": KLINE_INTERVAL, "limit": KLINE_LIMIT},
-        timeout=8,
-    )
+    try:
+        candles = get_json_with_fallback(
+            BINANCE_KLINES_PATH,
+            params={"symbol": symbol, "interval": KLINE_INTERVAL, "limit": KLINE_LIMIT},
+            timeout=8,
+        )
+    except Exception as binance_error:
+        print(f"Binance candles unavailable for {symbol}; using Bybit spot candles: {binance_error}")
+        bybit = get_bybit_json(
+            BYBIT_KLINES_PATH,
+            params={
+                "category": "spot",
+                "symbol": symbol,
+                "interval": "60",
+                "limit": KLINE_LIMIT,
+            },
+            timeout=8,
+        )
+        # Bybit returns candles newest-first; this engine expects oldest-first.
+        candles = list(reversed(bybit.get("result", {}).get("list", [])))
     if not isinstance(candles, list) or len(candles) < KLINE_LIMIT:
         raise ValueError(f"Not enough candles for {symbol}")
 
