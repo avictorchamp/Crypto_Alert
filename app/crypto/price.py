@@ -40,6 +40,11 @@ _cached_symbols = []
 _cached_at = 0.0
 _last_market_status = {"status": "NOT_STARTED"}
 _binance_fallback_logged = False
+# Binance may IP-ban a host with HTTP 418 for hours or days. Open a
+# process-wide circuit so the 50-symbol scanner does not keep hitting it.
+BINANCE_BLOCK_COOLDOWN_SECONDS = 6 * 60 * 60
+_binance_blocked_until = 0.0
+_binance_block_reason = ""
 
 
 def log_binance_fallback_once(context):
@@ -51,14 +56,25 @@ def log_binance_fallback_once(context):
 
 
 def get_json_with_fallback(path, params=None, timeout=15):
-    """Fetch public market data with endpoint failover.
+    """Fetch Binance market data, respecting IP-ban backoff.
 
-    Render egress IPs can receive HTTP 418 from api.binance.com. The
-    dedicated market-data endpoint and alternate Binance API hosts are
-    tried in order so one blocked hostname does not disable the scanner.
+    A 418/429 is treated as an IP-level circuit breaker, not a per-symbol
+    failure: the scanner switches to Bybit for the cooldown instead of
+    sending another Binance request for every symbol in the universe.
     """
+    global _binance_blocked_until, _binance_block_reason
+
+    now = time.time()
+    if now < _binance_blocked_until:
+        remaining = int(_binance_blocked_until - now)
+        raise RuntimeError(
+            f"Binance circuit open ({_binance_block_reason}); "
+            f"retry suppressed for {remaining}s"
+        )
+
     errors = []
     for base in BINANCE_MARKET_BASES:
+        response = None
         try:
             response = requests.get(
                 f"{base}{path}",
@@ -69,10 +85,13 @@ def get_json_with_fallback(path, params=None, timeout=15):
             return response.json()
         except Exception as exc:
             errors.append(f"{base}: {exc}")
-            # Binance explicitly asks clients to back off after 418/429.
-            # Do not keep hitting alternate Binance hosts from the same IP.
-            status_code = getattr(response, "status_code", None) if "response" in locals() else None
+            status_code = getattr(response, "status_code", None)
             if status_code in (418, 429):
+                _binance_blocked_until = time.time() + BINANCE_BLOCK_COOLDOWN_SECONDS
+                _binance_block_reason = f"HTTP {status_code} from {base}"
+                log_binance_fallback_once(_binance_block_reason)
+                # Binance asks clients to back off. Do not hit other hosts
+                # on the same egress IP after a rate-limit/ban response.
                 break
     raise RuntimeError(
         "All Binance market-data endpoints failed: " + " | ".join(errors)
