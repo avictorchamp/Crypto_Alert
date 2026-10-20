@@ -2065,7 +2065,7 @@
     }
   ],
   "latest_signal_utc": "2026-10-20T22:00:00+00:00",
-  "last_run_utc": "2026-10-20T22:57:10.176589+00:00",
+  "last_run_utc": "2026-10-20T22:57:44.161182+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -2081,8 +2081,17 @@
     "signal_counts": {
       "WAIT": 856,
       "volume_gt_1_5": 199,
-      "bullish_trend": 376,
       "SELL WATCH": 44
+    },
+    "gate_counts": {
+      "rsi_below_65": 711,
+      "risk_reward_at_least_1": 900,
+      "volume_at_least_1_2": 256,
+      "momentum_gate_pass": 755,
+      "bullish_trend": 376,
+      "quality_at_least_65": 363,
+      "within_1_5pct_of_100h_support": 236,
+      "inside_0_5pct_entry_zone": 82
     },
     "method": "exact production generate_signal over rolling 100 completed 1H candles",
     "note": "Signal-frequency diagnostics only; no simulated trade returns."
