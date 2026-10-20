@@ -49,6 +49,7 @@ def historical_signal_diagnostics(completed):
     from collections import Counter
     counts=Counter()
     gates=Counter()
+    variants={n:Counter() for n in (24,48,72)}
     samples=0
     for end in range(100, len(completed)+1):
         window=completed[end-100:end]
@@ -65,6 +66,14 @@ def historical_signal_diagnostics(completed):
                             support=support,resistance=resistance,
                             volume_ratio=volume_ratio,momentum_6h=momentum_6h)
         counts[sig["signal"]]+=1
+        for lookback, bucket in variants.items():
+            candidate_support=min(prices[-lookback:])
+            candidate=generate_signal(rsi=rsi,ema20=ema20,ema50=ema50,price=price,
+                                      support=candidate_support,resistance=resistance,
+                                      volume_ratio=volume_ratio,momentum_6h=momentum_6h)
+            bucket[candidate["signal"]]+=1
+            if candidate["signal"] in ("BUY SETUP","STRONG BUY") and volume_ratio is not None and volume_ratio>VOLUME_THRESHOLD:
+                bucket["locked_entry"]+=1
         distance=((price-support)/price)*100 if price else 999
         if ema20>ema50: gates["bullish_trend"]+=1
         if price>=support and distance<=1.5: gates["within_1_5pct_of_100h_support"]+=1
@@ -80,8 +89,9 @@ def historical_signal_diagnostics(completed):
         samples+=1
     return {"rolling_windows":samples,"signal_counts":dict(counts),
             "gate_counts":dict(gates),
-            "method":"exact production generate_signal over rolling 100 completed 1H candles",
-            "note":"Signal-frequency diagnostics only; no simulated trade returns."}
+            "support_lookback_variants":{str(n):dict(v) for n,v in variants.items()},
+            "method":"Production rules compared with candidate support lookbacks of 24/48/72 completed candles; resistance remains the 100-candle high",
+            "note":"Signal-frequency diagnostics only; no simulated trade returns or evidence of profitability."}
 
 def main():
     raw=fetch_klines()
