@@ -16,7 +16,7 @@ LOG_FILE="v8_4_eth_forward_log.json"
 FEE=0.001
 SLIPPAGE=0.0005
 
-def fetch_klines(limit=120):
+def fetch_klines(limit=1000):
     last=None
     for host in ("api.binance.com","api.binance.us"):
         url=f"https://{host}/api/v3/klines?symbol={SYMBOL}&interval=1h&limit={limit}"
@@ -41,6 +41,37 @@ def metrics(rows):
         "profit_factor":round(sum(wins)/sum(losses),3) if losses else None,
         "open_trades":sum(x.get("status")=="OPEN" for x in rows),
     }
+
+def historical_signal_diagnostics(completed):
+    """Count exact production-rule signals over rolling completed 1H windows.
+    Signal-frequency diagnostics only; this does not simulate fills or PnL.
+    """
+    from collections import Counter
+    counts=Counter()
+    samples=0
+    for end in range(100, len(completed)+1):
+        window=completed[end-100:end]
+        prices=[x["c"] for x in window]
+        price=prices[-1]
+        rsi=calculate_rsi(prices)
+        ema20=calculate_ema(prices,20)
+        ema50=calculate_ema(prices,50)
+        support,resistance=support_resistance(prices)
+        avg_prev20=sum(x["v"] for x in window[-21:-1])/20
+        volume_ratio=window[-1]["v"]/avg_prev20 if avg_prev20 else None
+        momentum_6h=price/prices[-7]-1 if prices[-7] else None
+        sig=generate_signal(rsi=rsi,ema20=ema20,ema50=ema50,price=price,
+                            support=support,resistance=resistance,
+                            volume_ratio=volume_ratio,momentum_6h=momentum_6h)
+        counts[sig["signal"]]+=1
+        if sig["signal"] in ("BUY SETUP","STRONG BUY") and volume_ratio is not None and volume_ratio>VOLUME_THRESHOLD:
+            counts["locked_entry"]+=1
+        if ema20>ema50: counts["bullish_trend"]+=1
+        if volume_ratio is not None and volume_ratio>VOLUME_THRESHOLD: counts["volume_gt_1_5"]+=1
+        samples+=1
+    return {"rolling_windows":samples,"signal_counts":dict(counts),
+            "method":"exact production generate_signal over rolling 100 completed 1H candles",
+            "note":"Signal-frequency diagnostics only; no simulated trade returns."}
 
 def main():
     raw=fetch_klines()
@@ -110,12 +141,13 @@ def main():
     data["latest_signal_utc"]=obs[-1]["signal_time_utc"] if obs else None
     data["last_run_utc"]=datetime.now(timezone.utc).isoformat()
     data["candles_1h_completed"]=len(completed)
+    data["historical_signal_diagnostics"]=historical_signal_diagnostics(completed)
     data["summary"]=metrics(obs)
     with open(LOG_FILE,"w",encoding="utf-8") as f:json.dump(data,f,indent=2)
     print(json.dumps({"latest_signal_utc":data["latest_signal_utc"],
                       "latest_signal":obs[-1]["signal"] if obs else None,
                       "latest_locked_entry":obs[-1]["locked_entry"] if obs else None,
                       "latest_volume_ratio":obs[-1]["volume_ratio"] if obs else None,
-                      "summary":data["summary"],"production_changed":False},indent=2))
+                      "summary":data["summary"],"historical_signal_diagnostics":data["historical_signal_diagnostics"],"production_changed":False},indent=2))
 
 if __name__=="__main__": main()
