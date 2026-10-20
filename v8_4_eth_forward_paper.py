@@ -49,7 +49,7 @@ def historical_signal_diagnostics(completed):
     from collections import Counter
     counts=Counter()
     gates=Counter()
-    variants={n:Counter() for n in (24,48,72)}
+    variants={n:Counter() for n in (12,16,20,24,32,48,72)}
     samples=0
     for end in range(100, len(completed)+1):
         window=completed[end-100:end]
@@ -90,7 +90,7 @@ def historical_signal_diagnostics(completed):
     return {"rolling_windows":samples,"signal_counts":dict(counts),
             "gate_counts":dict(gates),
             "support_lookback_variants":{str(n):dict(v) for n,v in variants.items()},
-            "method":"Production rules compared with candidate support lookbacks of 24/48/72 completed candles; resistance remains the 100-candle high",
+            "method":"Production rules compared with candidate support lookbacks of 12/16/20/24/32/48/72 completed candles; resistance remains the 100-candle high",
             "note":"Signal-frequency diagnostics only; no simulated trade returns or evidence of profitability."}
 
 def backtest_support_lookback(completed, lookback, horizon=24):
@@ -245,7 +245,7 @@ def main():
     data["last_run_utc"]=datetime.now(timezone.utc).isoformat()
     data["candles_1h_completed"]=len(completed)
     data["historical_signal_diagnostics"]=historical_signal_diagnostics(completed)
-    data["candidate_backtests"]={str(n):backtest_support_lookback(completed,n) for n in (24,48,72)}
+    data["candidate_backtests"]={str(n):backtest_support_lookback(completed,n) for n in (12,16,20,24,32,48,72)}
     data["summary"]=metrics(obs)
     with open(LOG_FILE,"w",encoding="utf-8") as f:json.dump(data,f,indent=2)
     print(json.dumps({"latest_signal_utc":data["latest_signal_utc"],
