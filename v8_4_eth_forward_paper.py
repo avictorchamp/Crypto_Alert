@@ -48,6 +48,7 @@ def historical_signal_diagnostics(completed):
     """
     from collections import Counter
     counts=Counter()
+    gates=Counter()
     samples=0
     for end in range(100, len(completed)+1):
         window=completed[end-100:end]
@@ -64,12 +65,21 @@ def historical_signal_diagnostics(completed):
                             support=support,resistance=resistance,
                             volume_ratio=volume_ratio,momentum_6h=momentum_6h)
         counts[sig["signal"]]+=1
+        distance=((price-support)/price)*100 if price else 999
+        if ema20>ema50: gates["bullish_trend"]+=1
+        if price>=support and distance<=1.5: gates["within_1_5pct_of_100h_support"]+=1
+        if support<=price<=round(support*1.005,8): gates["inside_0_5pct_entry_zone"]+=1
+        if rsi<65: gates["rsi_below_65"]+=1
+        if sig.get("risk_reward") is not None and sig["risk_reward"]>=1.0: gates["risk_reward_at_least_1"]+=1
+        if sig["quality_score"]>=65: gates["quality_at_least_65"]+=1
+        if volume_ratio is not None and volume_ratio>=1.2: gates["volume_at_least_1_2"]+=1
+        if momentum_6h is None or momentum_6h>=-0.01: gates["momentum_gate_pass"]+=1
         if sig["signal"] in ("BUY SETUP","STRONG BUY") and volume_ratio is not None and volume_ratio>VOLUME_THRESHOLD:
             counts["locked_entry"]+=1
-        if ema20>ema50: counts["bullish_trend"]+=1
         if volume_ratio is not None and volume_ratio>VOLUME_THRESHOLD: counts["volume_gt_1_5"]+=1
         samples+=1
     return {"rolling_windows":samples,"signal_counts":dict(counts),
+            "gate_counts":dict(gates),
             "method":"exact production generate_signal over rolling 100 completed 1H candles",
             "note":"Signal-frequency diagnostics only; no simulated trade returns."}
 
