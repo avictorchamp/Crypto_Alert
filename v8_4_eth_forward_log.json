@@ -2049,11 +2049,24 @@
       "momentum_6h": 0.017102179370626303,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-10-20T22:00:00+00:00",
+      "signal_candle_close_ms": 1792533600000,
+      "price": 2458.51,
+      "signal": "WAIT",
+      "confidence": 55,
+      "quality_score": 55,
+      "risk_reward": 4.36,
+      "volume_ratio": 0.49313291982447793,
+      "momentum_6h": 0.007986781630402229,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-10-20T19:00:00+00:00",
-  "last_run_utc": "2026-10-20T19:08:31.631022+00:00",
-  "candles_1h_completed": 119,
+  "latest_signal_utc": "2026-10-20T22:00:00+00:00",
+  "last_run_utc": "2026-10-20T22:57:10.176589+00:00",
+  "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
     "winning_trades": 0,
@@ -2062,5 +2075,16 @@
     "expectancy_pct": null,
     "profit_factor": null,
     "open_trades": 0
+  },
+  "historical_signal_diagnostics": {
+    "rolling_windows": 900,
+    "signal_counts": {
+      "WAIT": 856,
+      "volume_gt_1_5": 199,
+      "bullish_trend": 376,
+      "SELL WATCH": 44
+    },
+    "method": "exact production generate_signal over rolling 100 completed 1H candles",
+    "note": "Signal-frequency diagnostics only; no simulated trade returns."
   }
 }
