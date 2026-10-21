@@ -26,6 +26,25 @@ def rule_score(c):
     support = math.log1p(int(c["test_n"]))
     return edge * support + close
 
+def resolve_feature_conditions(label, edges):
+    """Attach training-only thresholds to bucket labels for reproducible shadow evaluation."""
+    conditions = [label] if isinstance(label, (list, tuple)) and len(label) == 2 and isinstance(label[0], str) else list(label)
+    resolved = []
+    for feature, value in conditions:
+        if feature in edges:
+            bucket = int(value)
+            bounds = edges[feature]
+            resolved.append({
+                "feature": feature,
+                "bucket": bucket,
+                "lower_bound_inclusive": bounds[bucket],
+                "upper_bound_inclusive": bounds[bucket + 1],
+                "boundary_rule": "use the same first-matching bucket function as V7.10"
+            })
+        else:
+            resolved.append({"feature": feature, "equals": value})
+    return resolved
+
 def build_rules(results):
     rules = {}
     for coin, data in results.items():
@@ -46,6 +65,7 @@ def build_rules(results):
                 "direction": c["direction"],
                 "horizon_hours": c["horizon"],
                 "pattern": c["label"],
+                "feature_conditions": resolve_feature_conditions(c["label"], data["feature_bucket_edges"]),
                 "train_support": c["train_n"],
                 "validation_support": c["validation_n"],
                 "unseen_test_support": c["test_n"],
@@ -79,6 +99,7 @@ def main():
       "max_rules_per_coin":MAX_RULES_PER_COIN,
       "total_shadow_rules":total,
       "rules_by_coin":rules,
+      "feature_bucket_edges_by_coin":{coin:data["feature_bucket_edges"] for coin,data in results.items()},
       "integration_status":"NOT_LIVE",
       "notes":[
         "Rules are research/shadow only.",
