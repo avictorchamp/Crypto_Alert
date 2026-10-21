@@ -100,6 +100,8 @@ def gate_coin(rows):
         "split":{"train":len(train),"validation":len(valid),"unseen_test":len(test)},
         "baseline":{"train":summarize(train),"validation":summarize(valid),"unseen_test":summarize(test)},
         "top_training_patterns":learned["patterns"][:10],
+        # Export edges learned from training only so bucket IDs can be reproduced.
+        "feature_bucket_edges":learned["edges"],
         "validation_pattern_count":len(vp),
         "unseen_test_pattern_count":len(tp),
         "oos_candidates":candidates[:20],
