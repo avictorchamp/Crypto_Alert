@@ -2101,10 +2101,23 @@
       "momentum_6h": 0.004586161329782179,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-10-21T15:00:00+00:00",
+      "signal_candle_close_ms": 1792594800000,
+      "price": 2494.69,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 60,
+      "risk_reward": 5.12,
+      "volume_ratio": 6.85733151884243,
+      "momentum_6h": 0.01622495783873612,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-10-21T10:00:00+00:00",
-  "last_run_utc": "2026-10-21T10:00:33.311359+00:00",
+  "latest_signal_utc": "2026-10-21T15:00:00+00:00",
+  "last_run_utc": "2026-10-21T15:03:40.477125+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -2119,16 +2132,16 @@
     "rolling_windows": 900,
     "signal_counts": {
       "WAIT": 856,
-      "volume_gt_1_5": 197,
+      "volume_gt_1_5": 196,
       "SELL WATCH": 44
     },
     "gate_counts": {
-      "rsi_below_65": 707,
+      "rsi_below_65": 705,
       "risk_reward_at_least_1": 900,
-      "volume_at_least_1_2": 253,
-      "momentum_gate_pass": 759,
-      "bullish_trend": 388,
-      "quality_at_least_65": 365,
+      "momentum_gate_pass": 762,
+      "bullish_trend": 393,
+      "quality_at_least_65": 366,
+      "volume_at_least_1_2": 251,
       "within_1_5pct_of_100h_support": 236,
       "inside_0_5pct_entry_zone": 82
     },
