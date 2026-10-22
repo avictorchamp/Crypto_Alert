@@ -1,6 +1,8 @@
 name: V7.10 Coin-Specific Out-of-Sample Gate
 
 on:
+  push:
+    branches: [research/v7-10-coin-specific-oos-gate]
   pull_request:
     branches: [main]
   workflow_dispatch:
