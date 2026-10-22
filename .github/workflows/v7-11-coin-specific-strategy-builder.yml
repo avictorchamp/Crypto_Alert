@@ -2,7 +2,7 @@ name: V7.11 Coin-Specific Strategy Builder
 
 on:
   push:
-    branches: [main]
+    branches: [research/v7-11-coin-specific-strategy-builder, main]
   workflow_dispatch:
   pull_request:
     branches: [main]
