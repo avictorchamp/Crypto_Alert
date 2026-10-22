@@ -17,7 +17,7 @@ def feature_row(h,d,i,btc_d=None,btc_h=None):
     p,e20,e50,r,sup,res,avg,vol,va=feat(h,i)
     c=[x["c"] for x in h[i-50:i+1]]
     r20=p/c[-21] - 1 if len(c)>=21 else 0
-    rows=[x for x in d if x["t"]<=h[i]["t"]]
+    rows=[x for x in d if x["t"]+24*60*60*1000<=h[i]["t"]]  # exclude the still-forming daily candle
     dc=[x["c"] for x in rows[-50:]]
     d20=ema(dc[-20:],20) if len(dc)>=20 else None
     d50=ema(dc,50) if len(dc)>=50 else None
