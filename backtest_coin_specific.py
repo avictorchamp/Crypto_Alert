@@ -40,7 +40,7 @@ def ema(v,p):
 def rsi(v,p=14):
  g=sum(max(b-a,0) for a,b in zip(v[-p-1:-1],v[-p:]));l=sum(max(a-b,0) for a,b in zip(v[-p-1:-1],v[-p:]));return 50 if g+l==0 else 100 if l==0 else 100-100/(1+g/l)
 def daily_regime(d,t):
- rows=[x for x in d if x['t']<=t]
+ rows=[x for x in d if x['t']+24*60*60*1000<=t]  # only fully closed daily candles; avoid look-ahead
  if len(rows)<50:return 'UNKNOWN'
  c=[x['c'] for x in rows[-50:]];e20=ema(c[-20:],20);e50=ema(c,50)
  return 'BULL' if e20>e50*1.002 else 'BEAR' if e20<e50*.998 else 'SIDEWAYS'
