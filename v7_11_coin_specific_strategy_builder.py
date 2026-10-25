@@ -74,6 +74,9 @@ def build_rules(results):
                 "validation_avg_close": c["validation_avg_close"],
                 "unseen_test_avg_close": c["test_avg_close"],
                 "unseen_test_baseline_avg_close": c["baseline_test_avg_close"],
+                "validation_net_return_after_costs": c["validation_net_return"],
+                "unseen_test_net_return_after_costs": c["test_net_return"],
+                "round_trip_cost_assumption": c["round_trip_cost_assumption"],
                 "selection_score": rule_score(c),
                 "mode": "SHADOW"
             })
@@ -97,6 +100,9 @@ def main():
       "source_gate":"7.10.0-coin-specific-oos-gate",
       "targets":TARGETS,
       "max_rules_per_coin":MAX_RULES_PER_COIN,
+      "purge_gap_hours":max(HORIZONS),
+      "evaluation_method":"Per-pattern cooldown equal to outcome horizon; fixed-cadence baseline; requires positive directional return after assumed round-trip fees and slippage.",
+      "cost_model":{"fee_per_side":0.001,"slippage_per_side":0.0005,"round_trip_cost":0.003,"minimum_net_return_after_costs":0.001},
       "total_shadow_rules":total,
       "rules_by_coin":rules,
       "feature_bucket_edges_by_coin":{coin:data["feature_bucket_edges"] for coin,data in results.items()},
