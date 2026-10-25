@@ -26,15 +26,35 @@ def direction(p, base):
         return "SHORT"
     return None
 
+def summarize_horizon(rows, horizon):
+    # Fixed-cadence baseline: outcome windows do not overlap.
+    step_ms = int(horizon) * 60 * 60 * 1000
+    sampled=[]; next_allowed=None
+    for r in rows:
+        if next_allowed is None or r["t"] >= next_allowed:
+            sampled.append(r)
+            next_allowed = r["t"] + step_ms
+    h=str(horizon)
+    n=len(sampled)
+    if not n:
+        return {"n":0,"up_rate":0.0,"down_rate":0.0,"avg_close":0.0}
+    return {
+        "n":n,
+        "up_rate":sum(r["outcomes"][h]["max"]>=.02 for r in sampled)/n,
+        "down_rate":sum(r["outcomes"][h]["min"]<=-.02 for r in sampled)/n,
+        "avg_close":sum(r["outcomes"][h]["close"] for r in sampled)/n
+    }
+
 def evaluate_patterns(rows, learned):
-    # Re-evaluate every learned pattern, not just the top 10, to avoid a
-    # ranking artifact becoming the OOS gate.
+    # Evaluate every learned pattern with a per-pattern cooldown equal to its
+    # outcome horizon. This prevents overlapping outcomes from inflating support.
     edges=learned["edges"]
     results=[]
     for p in learned["patterns"]:
         label=p["label"]; h=str(p["horizon"])
+        horizon_ms=int(p["horizon"])*60*60*1000
         conditions=[label] if isinstance(label,(list,tuple)) and len(label)==2 and isinstance(label[0],str) else list(label)
-        matched=[]
+        matched=[]; next_allowed=None
         for r in rows:
             ok=True
             for f,v in conditions:
@@ -42,7 +62,9 @@ def evaluate_patterns(rows, learned):
                     ok = ok and str(r["features"][f])==str(v)
                 else:
                     ok = ok and bucket_value(r["features"][f], edges[f])==int(v)
-            if ok: matched.append(r)
+            if ok and (next_allowed is None or r["t"] >= next_allowed):
+                matched.append(r)
+                next_allowed = r["t"] + horizon_ms
         if len(matched) < 1: continue
         results.append({
             "label":label, "horizon":p["horizon"], "n":len(matched),
@@ -67,8 +89,10 @@ def gate_coin(rows):
     valid=rows[a:max(a,b-purge_bars)]
     test=rows[b:]
     learned=learn_patterns(train)
+    trp=evaluate_patterns(train, learned)
     vp=evaluate_patterns(valid, learned)
     tp=evaluate_patterns(test, learned)
+    train_bykey={(str(x["label"]),x["horizon"]):x for x in trp}
     bykey={(str(x["label"]),x["horizon"]):x for x in vp}
     candidates=[]
     for p in tp:
@@ -76,11 +100,10 @@ def gate_coin(rows):
         key=(str(p["label"]),p["horizon"])
         v=bykey.get(key)
         if not v or v["n"] < MIN_VALID: continue
-        tr=next((x for x in learned["patterns"] if str(x["label"])==str(p["label"]) and x["horizon"]==p["horizon"]),None)
+        tr=train_bykey.get(key)
         if not tr or tr["n"] < MIN_TRAIN: continue
-        base_v=next((x for x in summarize(valid).values() if False),None)
         h=str(p["horizon"])
-        bv=summarize(valid)[h]; bt=summarize(test)[h]; btr=summarize(train)[h]
+        bv=summarize_horizon(valid, int(h)); bt=summarize_horizon(test, int(h)); btr=summarize_horizon(train, int(h))
         d=direction(tr,btr)
         if not d: continue
         if d=="LONG":
