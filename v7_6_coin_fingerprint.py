@@ -151,7 +151,10 @@ def main():
     results={}
     for s,rows in events.items():
         n=len(rows); a=int(n*.20); b=int(n*.60)
-        train=rows[:a]; valid=rows[a:b]; test=rows[b:]
+        purge_bars=max(HORIZONS)
+        train=rows[:max(0,a-purge_bars)]
+        valid=rows[a:max(a,b-purge_bars)]
+        test=rows[b:]
         learned=learn_patterns(train)
         valid_patterns=apply_patterns(valid,learned)
         test_patterns=apply_patterns(test,learned)
@@ -164,7 +167,8 @@ def main():
          "purpose":"Discover per-coin pre-move patterns and test them on unseen chronological data",
          "period_months":18,"targets":TARGETS,"horizons_hours":list(HORIZONS),
          "labels":"up if future max >= +2%; down if future min <= -2%; close return also measured",
-         "split_rule":"chronological 20% train, 40% validation, 40% unseen test; patterns learned from train only",
+         "split_rule":"chronological 20% train, 40% validation, 40% unseen test; patterns learned from train only; purge 72 hourly rows at each boundary to prevent overlapping forward labels",
+         "purge_gap_hours":max(HORIZONS),
          "pattern_features":list(FEATURES),
          "results":results}
     open("v7_6_coin_fingerprint_results.json","w").write(json.dumps(out,indent=2));print(json.dumps(out,indent=2))
