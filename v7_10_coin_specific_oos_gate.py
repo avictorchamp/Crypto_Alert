@@ -60,7 +60,12 @@ def bucket_value(x, edges):
 
 def gate_coin(rows):
     n=len(rows); a=int(n*.20); b=int(n*.60)
-    train, valid, test=rows[:a], rows[a:b], rows[b:]
+    # Purge one full maximum label horizon at each boundary so forward outcomes
+    # from train/validation cannot overlap the next split.
+    purge_bars=max(HORIZONS)
+    train=rows[:max(0,a-purge_bars)]
+    valid=rows[a:max(a,b-purge_bars)]
+    test=rows[b:]
     learned=learn_patterns(train)
     vp=evaluate_patterns(valid, learned)
     tp=evaluate_patterns(test, learned)
@@ -121,6 +126,8 @@ def main():
       "production_changed":False,
       "purpose":"Verify whether V7.6 per-coin patterns retain directional edge on validation and unseen chronological test data",
       "targets":TARGETS,"horizons_hours":list(HORIZONS),"period_months":18,
+      "purge_gap_hours":max(HORIZONS),
+      "split_method":"chronological 20/40/40 with a full maximum-label-horizon purge at each boundary",
       "thresholds":{"min_train_support":MIN_TRAIN,"min_validation_support":MIN_VALID,"min_test_support":MIN_TEST,
                    "min_directional_rate_lift":MIN_RATE_LIFT,"min_avg_close_edge":MIN_CLOSE_EDGE},
       "gate_rule":"A candidate must have the same directional edge on validation and unseen test, with minimum support and minimum rate/close-return edge on both periods.",
