@@ -2387,10 +2387,23 @@
       "momentum_6h": 0.009192766822507581,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-10-25T11:00:00+00:00",
+      "signal_candle_close_ms": 1792926000000,
+      "price": 2325.91,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 60,
+      "risk_reward": 7.04,
+      "volume_ratio": 0.11293830043708952,
+      "momentum_6h": -0.0177661973496398,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-10-25T05:00:00+00:00",
-  "last_run_utc": "2026-10-25T05:59:37.777965+00:00",
+  "latest_signal_utc": "2026-10-25T11:00:00+00:00",
+  "last_run_utc": "2026-10-25T11:12:42.805590+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -2404,64 +2417,64 @@
   "historical_signal_diagnostics": {
     "rolling_windows": 900,
     "signal_counts": {
-      "WAIT": 863,
+      "WAIT": 862,
       "volume_gt_1_5": 199,
-      "SELL WATCH": 37
+      "SELL WATCH": 38
     },
     "gate_counts": {
-      "bullish_trend": 385,
-      "risk_reward_at_least_1": 900,
-      "momentum_gate_pass": 755,
+      "bullish_trend": 379,
       "rsi_below_65": 717,
-      "quality_at_least_65": 351,
-      "volume_at_least_1_2": 253,
-      "within_1_5pct_of_100h_support": 237,
+      "risk_reward_at_least_1": 900,
+      "quality_at_least_65": 348,
+      "momentum_gate_pass": 752,
+      "volume_at_least_1_2": 254,
+      "within_1_5pct_of_100h_support": 241,
       "inside_0_5pct_entry_zone": 74
     },
     "support_lookback_variants": {
       "12": {
-        "WAIT": 843,
+        "WAIT": 842,
         "BUY SETUP": 19,
         "locked_entry": 17,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "STRONG BUY": 1
       },
       "16": {
-        "WAIT": 845,
+        "WAIT": 844,
         "BUY SETUP": 17,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "locked_entry": 15,
         "STRONG BUY": 1
       },
       "20": {
-        "WAIT": 852,
+        "WAIT": 851,
         "BUY SETUP": 10,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "locked_entry": 10,
         "STRONG BUY": 1
       },
       "24": {
-        "WAIT": 855,
+        "WAIT": 854,
         "BUY SETUP": 7,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "locked_entry": 7,
         "STRONG BUY": 1
       },
       "32": {
-        "WAIT": 858,
+        "WAIT": 857,
         "BUY SETUP": 5,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "locked_entry": 4
       },
       "48": {
-        "WAIT": 859,
+        "WAIT": 858,
         "BUY SETUP": 4,
-        "SELL WATCH": 37,
+        "SELL WATCH": 38,
         "locked_entry": 3
       },
       "72": {
-        "WAIT": 862,
-        "SELL WATCH": 37,
+        "WAIT": 861,
+        "SELL WATCH": 38,
         "BUY SETUP": 1,
         "locked_entry": 1
       }
