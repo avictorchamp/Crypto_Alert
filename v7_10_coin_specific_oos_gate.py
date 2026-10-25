@@ -16,6 +16,10 @@ MIN_TEST=30
 MIN_TRAIN=40
 MIN_RATE_LIFT=0.03
 MIN_CLOSE_EDGE=0.002
+FEE_PER_SIDE=0.001
+SLIPPAGE_PER_SIDE=0.0005
+ROUND_TRIP_COST=2*(FEE_PER_SIDE+SLIPPAGE_PER_SIDE)
+MIN_NET_RETURN=0.001
 
 def direction(p, base):
     up_lift=p["up_rate"]-base["up_rate"]
@@ -107,11 +111,15 @@ def gate_coin(rows):
         d=direction(tr,btr)
         if not d: continue
         if d=="LONG":
-            valid_ok=(v["up_rate"]-bv["up_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]>=MIN_CLOSE_EDGE)
-            test_ok=(p["up_rate"]-bt["up_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]>=MIN_CLOSE_EDGE)
+            valid_net=v["avg_close"]-ROUND_TRIP_COST
+            test_net=p["avg_close"]-ROUND_TRIP_COST
+            valid_ok=(v["up_rate"]-bv["up_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]>=MIN_CLOSE_EDGE and valid_net>=MIN_NET_RETURN)
+            test_ok=(p["up_rate"]-bt["up_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]>=MIN_CLOSE_EDGE and test_net>=MIN_NET_RETURN)
         else:
-            valid_ok=(v["down_rate"]-bv["down_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]<=-MIN_CLOSE_EDGE)
-            test_ok=(p["down_rate"]-bt["down_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]<=-MIN_CLOSE_EDGE)
+            valid_net=-v["avg_close"]-ROUND_TRIP_COST
+            test_net=-p["avg_close"]-ROUND_TRIP_COST
+            valid_ok=(v["down_rate"]-bv["down_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]<=-MIN_CLOSE_EDGE and valid_net>=MIN_NET_RETURN)
+            test_ok=(p["down_rate"]-bt["down_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]<=-MIN_CLOSE_EDGE and test_net>=MIN_NET_RETURN)
         if valid_ok and test_ok:
             candidates.append({
                 "label":p["label"],"horizon":p["horizon"],"direction":d,
@@ -120,7 +128,9 @@ def gate_coin(rows):
                 "validation_edge_rate":(v["up_rate"]-bv["up_rate"]) if d=="LONG" else (v["down_rate"]-bv["down_rate"]),
                 "test_edge_rate":(p["up_rate"]-bt["up_rate"]) if d=="LONG" else (p["down_rate"]-bt["down_rate"]),
                 "train_avg_close":tr["avg_close"],"validation_avg_close":v["avg_close"],
-                "test_avg_close":p["avg_close"],"baseline_test_avg_close":bt["avg_close"]
+                "test_avg_close":p["avg_close"],"baseline_test_avg_close":bt["avg_close"],
+                "validation_net_return":valid_net,"test_net_return":test_net,
+                "round_trip_cost_assumption":ROUND_TRIP_COST
             })
     candidates.sort(key=lambda x:(x["test_edge_rate"],x["test_avg_close"] if x["direction"]=="LONG" else -x["test_avg_close"]), reverse=True)
     return {
@@ -153,7 +163,9 @@ def main():
       "purge_gap_hours":max(HORIZONS),
       "split_method":"chronological 20/40/40 with a full maximum-label-horizon purge at each boundary",
       "thresholds":{"min_train_support":MIN_TRAIN,"min_validation_support":MIN_VALID,"min_test_support":MIN_TEST,
-                   "min_directional_rate_lift":MIN_RATE_LIFT,"min_avg_close_edge":MIN_CLOSE_EDGE},
+                   "min_directional_rate_lift":MIN_RATE_LIFT,"min_avg_close_edge":MIN_CLOSE_EDGE,
+                   "fee_per_side":FEE_PER_SIDE,"slippage_per_side":SLIPPAGE_PER_SIDE,
+                   "round_trip_cost":ROUND_TRIP_COST,"min_net_return_after_costs":MIN_NET_RETURN},
       "gate_rule":"A candidate must have the same directional edge on validation and unseen test, with minimum support and minimum rate/close-return edge on both periods.",
       "coins_with_oos_candidates":passed,"total_oos_candidates":total,"results":results
     }
