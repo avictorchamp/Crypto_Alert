@@ -173,6 +173,7 @@ def gate_coin(rows):
         "validation_pattern_count":len(vp),
         "unseen_test_pattern_count":len(tp),
         "oos_candidates":candidates[:20],
+        "diagnostics":{"rejection_counts":rejection_counts,"near_misses":sorted(near_misses,key=lambda x:min(x["validation_net_return"],x["test_net_return"]),reverse=True)[:10]},
         "gate_passed":len(candidates)>0
     }
 
