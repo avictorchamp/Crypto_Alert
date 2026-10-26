@@ -99,39 +99,69 @@ def gate_coin(rows):
     train_bykey={(str(x["label"]),x["horizon"]):x for x in trp}
     bykey={(str(x["label"]),x["horizon"]):x for x in vp}
     candidates=[]
+    rejection_counts={"insufficient_test_support":0,"missing_or_weak_validation":0,"missing_or_weak_train_support":0,"no_train_direction":0,"validation_failed":0,"unseen_test_failed":0,"passed_all_checks":0}
+    near_misses=[]
     for p in tp:
-        if p["n"] < MIN_TEST: continue
+        if p["n"] < MIN_TEST:
+            rejection_counts["insufficient_test_support"] += 1
+            continue
         key=(str(p["label"]),p["horizon"])
         v=bykey.get(key)
-        if not v or v["n"] < MIN_VALID: continue
+        if not v or v["n"] < MIN_VALID:
+            rejection_counts["missing_or_weak_validation"] += 1
+            continue
         tr=train_bykey.get(key)
-        if not tr or tr["n"] < MIN_TRAIN: continue
+        if not tr or tr["n"] < MIN_TRAIN:
+            rejection_counts["missing_or_weak_train_support"] += 1
+            continue
         h=str(p["horizon"])
         bv=summarize_horizon(valid, int(h)); bt=summarize_horizon(test, int(h)); btr=summarize_horizon(train, int(h))
         d=direction(tr,btr)
-        if not d: continue
+        if not d:
+            rejection_counts["no_train_direction"] += 1
+            continue
         if d=="LONG":
             valid_net=v["avg_close"]-ROUND_TRIP_COST
             test_net=p["avg_close"]-ROUND_TRIP_COST
-            valid_ok=(v["up_rate"]-bv["up_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]>=MIN_CLOSE_EDGE and valid_net>=MIN_NET_RETURN)
-            test_ok=(p["up_rate"]-bt["up_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]>=MIN_CLOSE_EDGE and test_net>=MIN_NET_RETURN)
+            valid_rate_lift=v["up_rate"]-bv["up_rate"]
+            test_rate_lift=p["up_rate"]-bt["up_rate"]
+            valid_close_edge=v["avg_close"]-bv["avg_close"]
+            test_close_edge=p["avg_close"]-bt["avg_close"]
         else:
             valid_net=-v["avg_close"]-ROUND_TRIP_COST
             test_net=-p["avg_close"]-ROUND_TRIP_COST
-            valid_ok=(v["down_rate"]-bv["down_rate"]>=MIN_RATE_LIFT and v["avg_close"]-bv["avg_close"]<=-MIN_CLOSE_EDGE and valid_net>=MIN_NET_RETURN)
-            test_ok=(p["down_rate"]-bt["down_rate"]>=MIN_RATE_LIFT and p["avg_close"]-bt["avg_close"]<=-MIN_CLOSE_EDGE and test_net>=MIN_NET_RETURN)
+            valid_rate_lift=v["down_rate"]-bv["down_rate"]
+            test_rate_lift=p["down_rate"]-bt["down_rate"]
+            valid_close_edge=-(v["avg_close"]-bv["avg_close"])
+            test_close_edge=-(p["avg_close"]-bt["avg_close"])
+        valid_ok=(valid_rate_lift>=MIN_RATE_LIFT and valid_close_edge>=MIN_CLOSE_EDGE and valid_net>=MIN_NET_RETURN)
+        test_ok=(test_rate_lift>=MIN_RATE_LIFT and test_close_edge>=MIN_CLOSE_EDGE and test_net>=MIN_NET_RETURN)
+        diagnostic={
+            "label":p["label"],"horizon":p["horizon"],"direction":d,
+            "train_n":tr["n"],"validation_n":v["n"],"test_n":p["n"],
+            "train_edge_rate":(tr["up_rate"]-btr["up_rate"]) if d=="LONG" else (tr["down_rate"]-btr["down_rate"]),
+            "validation_edge_rate":valid_rate_lift,"test_edge_rate":test_rate_lift,
+            "validation_net_return":valid_net,"test_net_return":test_net,
+            "validation_close_edge":valid_close_edge,"test_close_edge":test_close_edge,
+            "validation_passed":valid_ok,"unseen_test_passed":test_ok,
+            "round_trip_cost_assumption":ROUND_TRIP_COST
+        }
+        near_misses.append(diagnostic)
         if valid_ok and test_ok:
+            rejection_counts["passed_all_checks"] += 1
             candidates.append({
                 "label":p["label"],"horizon":p["horizon"],"direction":d,
                 "train_n":tr["n"],"validation_n":v["n"],"test_n":p["n"],
-                "train_edge_rate":(tr["up_rate"]-btr["up_rate"]) if d=="LONG" else (tr["down_rate"]-btr["down_rate"]),
-                "validation_edge_rate":(v["up_rate"]-bv["up_rate"]) if d=="LONG" else (v["down_rate"]-bv["down_rate"]),
-                "test_edge_rate":(p["up_rate"]-bt["up_rate"]) if d=="LONG" else (p["down_rate"]-bt["down_rate"]),
+                "train_edge_rate":diagnostic["train_edge_rate"],
+                "validation_edge_rate":valid_rate_lift,"test_edge_rate":test_rate_lift,
                 "train_avg_close":tr["avg_close"],"validation_avg_close":v["avg_close"],
                 "test_avg_close":p["avg_close"],"baseline_test_avg_close":bt["avg_close"],
                 "validation_net_return":valid_net,"test_net_return":test_net,
                 "round_trip_cost_assumption":ROUND_TRIP_COST
             })
+        else:
+            if not valid_ok: rejection_counts["validation_failed"] += 1
+            if not test_ok: rejection_counts["unseen_test_failed"] += 1
     candidates.sort(key=lambda x:(x["test_edge_rate"],x["test_avg_close"] if x["direction"]=="LONG" else -x["test_avg_close"]), reverse=True)
     return {
         "events":n,
