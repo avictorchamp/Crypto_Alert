@@ -420,6 +420,16 @@ def evaluate_watchlist_alert(
         "WAIT",
     )
 
+    # The production strategy currently calculates a LONG entry/stop/target
+    # plan only. Never route SELL WATCH/STRONG SELL through that long plan.
+    # Keep bearish observations visible in scan results, but do not send them
+    # as actionable alerts until a separately validated short-side plan exists.
+    if signal in SELL_SIGNALS:
+        return {
+            "allowed": False,
+            "reason": "No validated short-side trade plan; SELL signal is informational only",
+        }
+
     quality = to_float(
         result.get("quality_score")
     )
