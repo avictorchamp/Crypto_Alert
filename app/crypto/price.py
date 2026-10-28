@@ -282,8 +282,15 @@ def get_market():
                 failed.append({"symbol": symbol, "error": str(e)})
                 print(f"Market error for {symbol}: {e}")
     duration = round(time.time() - started, 3)
+    if failed and result:
+        market_status = "partial_success"
+    elif failed and not result:
+        market_status = "error"
+    else:
+        market_status = "success"
+
     _last_market_status = {
-        "status": "success",
+        "status": market_status,
         "dynamic_count": len(dynamic),
         "watchlist_extra_count": len(extra),
         "total_symbols": len(symbols),
@@ -293,7 +300,10 @@ def get_market():
         "watchlist_extra": [x[:-4] for x in extra],
         "failed_symbols": failed[:20],
     }
-    print(f"Market scan completed: {len(result)} coins in {duration}s")
+    print(
+        f"Market scan completed: {len(result)}/{len(symbols)} coins "
+        f"in {duration}s (status={market_status}, failed={len(failed)})"
+    )
     return result
 
 
