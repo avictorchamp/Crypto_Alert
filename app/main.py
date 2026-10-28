@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.crypto.price import get_market
+from app.crypto.price import get_market, get_market_status
 from app.crypto.xrp_v715_live import process_xrp_live, FROZEN_EDGES
 from app.crypto.analyzer import analyze
 from app.telegram.bot import send_message
@@ -1453,6 +1453,10 @@ def status():
 
         "last_scan_error":
             last_scan_error,
+
+        "market_data":
+            get_market_status(),
+
         "xrp_v715_live": {
             "enabled": True,
             "rule": "momentum_20 bucket 0 + vol_ratio bucket 3",
@@ -1520,6 +1524,9 @@ def health():
                     )
                 ),
         },
+
+        "market_data":
+            get_market_status(),
 
         "scheduler": {
             "started_at":
