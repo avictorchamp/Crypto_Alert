@@ -2829,10 +2829,23 @@
       "momentum_6h": -0.0004318074667442051,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-01T19:00:00+00:00",
+      "signal_candle_close_ms": 1793559600000,
+      "price": 2266.3,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 65,
+      "risk_reward": 6.24,
+      "volume_ratio": 0.28565346417792165,
+      "momentum_6h": 0.001768112098307073,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-11-01T14:00:00+00:00",
-  "last_run_utc": "2026-11-01T14:57:27.007301+00:00",
+  "latest_signal_utc": "2026-11-01T19:00:00+00:00",
+  "last_run_utc": "2026-11-01T19:30:23.247820+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -2848,39 +2861,39 @@
     "signal_counts": {
       "WAIT": 854,
       "SELL WATCH": 46,
-      "volume_gt_1_5": 207
+      "volume_gt_1_5": 208
     },
     "gate_counts": {
-      "within_1_5pct_of_100h_support": 311,
+      "within_1_5pct_of_100h_support": 307,
       "rsi_below_65": 745,
       "risk_reward_at_least_1": 900,
+      "quality_at_least_65": 385,
       "momentum_gate_pass": 754,
-      "quality_at_least_65": 382,
-      "volume_at_least_1_2": 253,
-      "bullish_trend": 281,
+      "volume_at_least_1_2": 255,
+      "bullish_trend": 286,
       "inside_0_5pct_entry_zone": 93
     },
     "support_lookback_variants": {
       "12": {
-        "WAIT": 836,
+        "WAIT": 834,
         "SELL WATCH": 46,
-        "BUY SETUP": 17,
-        "locked_entry": 17,
-        "STRONG BUY": 1
+        "BUY SETUP": 18,
+        "locked_entry": 18,
+        "STRONG BUY": 2
       },
       "16": {
-        "WAIT": 837,
+        "WAIT": 836,
         "SELL WATCH": 46,
         "BUY SETUP": 16,
         "locked_entry": 16,
-        "STRONG BUY": 1
+        "STRONG BUY": 2
       },
       "20": {
-        "WAIT": 843,
+        "WAIT": 842,
         "SELL WATCH": 46,
         "BUY SETUP": 10,
         "locked_entry": 11,
-        "STRONG BUY": 1
+        "STRONG BUY": 2
       },
       "24": {
         "WAIT": 847,
