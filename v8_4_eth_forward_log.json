@@ -2881,10 +2881,23 @@
       "momentum_6h": -0.0037100022181725256,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-02T23:00:00+00:00",
+      "signal_candle_close_ms": 1793660400000,
+      "price": 2256.8,
+      "signal": "WAIT",
+      "confidence": 48,
+      "quality_score": 48,
+      "risk_reward": 4.99,
+      "volume_ratio": 0.34262457918414585,
+      "momentum_6h": -0.005451332425512323,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-11-02T15:00:00+00:00",
-  "last_run_utc": "2026-11-02T15:33:52.514340+00:00",
+  "latest_signal_utc": "2026-11-02T23:00:00+00:00",
+  "last_run_utc": "2026-11-02T23:24:54.094401+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -2899,54 +2912,54 @@
     "rolling_windows": 900,
     "signal_counts": {
       "WAIT": 855,
-      "volume_gt_1_5": 212,
+      "volume_gt_1_5": 216,
       "SELL WATCH": 45
     },
     "gate_counts": {
       "rsi_below_65": 746,
       "risk_reward_at_least_1": 900,
-      "momentum_gate_pass": 756,
-      "within_1_5pct_of_100h_support": 305,
-      "volume_at_least_1_2": 258,
-      "quality_at_least_65": 394,
-      "bullish_trend": 306,
+      "momentum_gate_pass": 752,
+      "volume_at_least_1_2": 262,
+      "within_1_5pct_of_100h_support": 304,
+      "quality_at_least_65": 399,
+      "bullish_trend": 312,
       "inside_0_5pct_entry_zone": 93
     },
     "support_lookback_variants": {
       "12": {
-        "WAIT": 832,
+        "WAIT": 831,
         "BUY SETUP": 19,
-        "locked_entry": 20,
+        "locked_entry": 21,
         "SELL WATCH": 45,
-        "STRONG BUY": 4
+        "STRONG BUY": 5
       },
       "16": {
-        "WAIT": 835,
+        "WAIT": 834,
         "BUY SETUP": 16,
-        "locked_entry": 18,
+        "locked_entry": 19,
         "SELL WATCH": 45,
-        "STRONG BUY": 4
+        "STRONG BUY": 5
       },
       "20": {
-        "WAIT": 841,
+        "WAIT": 840,
         "BUY SETUP": 10,
-        "locked_entry": 13,
+        "locked_entry": 14,
+        "SELL WATCH": 45,
+        "STRONG BUY": 5
+      },
+      "24": {
+        "WAIT": 845,
+        "BUY SETUP": 6,
+        "locked_entry": 10,
         "SELL WATCH": 45,
         "STRONG BUY": 4
       },
-      "24": {
-        "WAIT": 846,
-        "BUY SETUP": 6,
-        "locked_entry": 9,
-        "SELL WATCH": 45,
-        "STRONG BUY": 3
-      },
       "32": {
-        "WAIT": 850,
+        "WAIT": 849,
         "SELL WATCH": 45,
         "BUY SETUP": 4,
-        "locked_entry": 5,
-        "STRONG BUY": 1
+        "locked_entry": 6,
+        "STRONG BUY": 2
       },
       "48": {
         "WAIT": 852,
@@ -3228,15 +3241,15 @@
     "24": {
       "support_lookback": 24,
       "horizon_hours": 24,
-      "trade_count": 4,
+      "trade_count": 5,
       "wins": 0,
-      "losses": 4,
+      "losses": 5,
       "breakeven": 0,
       "win_rate_pct": 0.0,
-      "average_net_return_pct": -1.231,
+      "average_net_return_pct": -1.0962,
       "profit_factor": 0.0,
-      "compounded_net_return_pct": -4.84,
-      "max_drawdown_pct": 4.84,
+      "compounded_net_return_pct": -5.37,
+      "max_drawdown_pct": 5.37,
       "trades": [
         {
           "entry_time_utc": "2026-09-28T00:00:00+00:00",
@@ -3281,6 +3294,17 @@
           "exit_reason": "STOP",
           "gross_return_pct": -1.0,
           "net_return_pct": -1.3
+        },
+        {
+          "entry_time_utc": "2026-11-01T20:00:00+00:00",
+          "exit_time_utc": "2026-11-02T20:00:00+00:00",
+          "entry_price": 2259.23,
+          "exit_price": 2253.43,
+          "stop": 2231.2719,
+          "target": 2371.56,
+          "exit_reason": "TIME",
+          "gross_return_pct": -0.2567,
+          "net_return_pct": -0.5567
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
@@ -3289,15 +3313,15 @@
     "32": {
       "support_lookback": 32,
       "horizon_hours": 24,
-      "trade_count": 2,
+      "trade_count": 3,
       "wins": 1,
-      "losses": 1,
+      "losses": 2,
       "breakeven": 0,
-      "win_rate_pct": 50.0,
-      "average_net_return_pct": -0.5777,
-      "profit_factor": 0.245,
-      "compounded_net_return_pct": -1.161,
-      "max_drawdown_pct": 1.531,
+      "win_rate_pct": 33.33,
+      "average_net_return_pct": -0.5094,
+      "profit_factor": 0.197,
+      "compounded_net_return_pct": -1.53,
+      "max_drawdown_pct": 1.898,
       "trades": [
         {
           "entry_time_utc": "2026-10-05T15:00:00+00:00",
@@ -3320,6 +3344,17 @@
           "exit_reason": "STOP",
           "gross_return_pct": -1.2307,
           "net_return_pct": -1.5307
+        },
+        {
+          "entry_time_utc": "2026-11-01T23:00:00+00:00",
+          "exit_time_utc": "2026-11-02T23:00:00+00:00",
+          "entry_price": 2258.44,
+          "exit_price": 2256.8,
+          "stop": 2228.4504,
+          "target": 2371.56,
+          "exit_reason": "TIME",
+          "gross_return_pct": -0.0726,
+          "net_return_pct": -0.3726
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
