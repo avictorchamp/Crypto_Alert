@@ -917,8 +917,8 @@
     "max_drawdown_pct": 0.0,
     "open_trades": 0
   },
-  "last_run_utc": "2026-11-05T06:57:41.717604+00:00",
+  "last_run_utc": "2026-11-05T07:00:15.785837+00:00",
   "latest_observation_utc": "2026-11-04T23:00:00+00:00",
-  "candles_1h": 3800,
+  "candles_1h": 3801,
   "candles_1d": 159
 }
