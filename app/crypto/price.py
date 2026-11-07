@@ -31,6 +31,7 @@ MAX_WATCHLIST_EXTRA = 100
 
 STABLECOINS = {
     "USDT", "USDC", "FDUSD", "TUSD", "USDP", "DAI", "PYUSD", "BUSD",
+    "RLUSD", "USD1", "USDE",
     "EUR", "TRY", "BRL", "GBP", "AUD", "BIDR", "UAH", "RUB",
 }
 LEVERAGED_PREFIXES = ("UP", "DOWN", "BULL", "BEAR")
