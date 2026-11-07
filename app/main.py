@@ -1161,7 +1161,7 @@ def run_full_scan():
     )
     overall_status = (
         "error"
-        if errors and not watchlist_data and portfolio.get("status") == "error"
+        if not watchlist_data
         else "partial_success"
         if errors or scan_has_partial_market or portfolio.get("status") != "success"
         else "success"
