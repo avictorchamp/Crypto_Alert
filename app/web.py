@@ -2,8 +2,14 @@
 
 The API implementation remains in app.main; this module only adds a root page.
 """
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from app.main import app
+
+
+@app.head("/", include_in_schema=False)
+def home_head():
+    # Render's platform probe may use HEAD; keep it healthy as well as GET.
+    return Response(status_code=200, media_type="text/html")
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
