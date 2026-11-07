@@ -749,6 +749,7 @@ def run_watchlist_scan():
     global last_watchlist_memory
 
     market = get_market()
+    market_status = get_market_status()
 
     if isinstance(market, dict):
 
@@ -775,6 +776,14 @@ def run_watchlist_scan():
 
         raise RuntimeError(
             "Unsupported get_market() response"
+        )
+
+    # Never report a healthy scan when the market provider returned
+    # no usable candles. This also prevents an empty market snapshot
+    # from silently overwriting watchlist state.
+    if not current_items:
+        raise RuntimeError(
+            "No usable market data; refusing to report a successful scan"
         )
 
     # -----------------------------------------------------
@@ -867,7 +876,12 @@ def run_watchlist_scan():
                 }
 
     return {
-        "status": "success",
+        "status": (
+            "success"
+            if market_status.get("status") == "success"
+            else "partial_success"
+        ),
+        "market_data": market_status,
         "count": len(results),
         "dynamic_count": len(current_items),
         "alerts_sent": alerts_sent,
@@ -1068,6 +1082,7 @@ def run_full_scan():
 
         watchlist = {
             "status": "error",
+            "market_data": get_market_status(),
             "count": 0,
             "dynamic_count": 0,
             "alerts_sent": [],
@@ -1139,12 +1154,22 @@ def run_full_scan():
             "message": str(e),
         }
 
+    market_status = watchlist.get("market_data") or get_market_status()
+    scan_has_partial_market = (
+        market_status.get("status") != "success"
+        or watchlist.get("status") == "partial_success"
+    )
+    overall_status = (
+        "error"
+        if errors and not watchlist_data and portfolio.get("status") == "error"
+        else "partial_success"
+        if errors or scan_has_partial_market or portfolio.get("status") != "success"
+        else "success"
+    )
+
     return {
-        "status": (
-            "success"
-            if not errors
-            else "partial_success"
-        ),
+        "status": overall_status,
+        "market_data": market_status,
         "watchlist": watchlist,
         "portfolio": portfolio,
         "watchlist_memory": memory,
