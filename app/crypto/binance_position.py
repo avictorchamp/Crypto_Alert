@@ -27,6 +27,12 @@ from app.crypto.binance_account import (
 
 VERSION = "3.4.0"
 
+# Exchange metadata changes infrequently. Cache it to avoid fetching the
+# full exchangeInfo document once per held asset during every scan.
+_EXCHANGE_INFO_CACHE = None
+_EXCHANGE_INFO_CACHE_AT = 0.0
+_EXCHANGE_INFO_CACHE_TTL = 60 * 60
+
 
 # =========================================================
 # CONFIG
@@ -77,10 +83,26 @@ def round_number(value, digits=8):
 # =========================================================
 
 def get_exchange_info():
+    global _EXCHANGE_INFO_CACHE, _EXCHANGE_INFO_CACHE_AT
 
-    return signed_get(
-        "/api/v1/exchangeInfo"
-    )
+    now = time.time()
+    if (
+        _EXCHANGE_INFO_CACHE is not None
+        and now - _EXCHANGE_INFO_CACHE_AT < _EXCHANGE_INFO_CACHE_TTL
+    ):
+        return _EXCHANGE_INFO_CACHE
+
+    try:
+        data = signed_get("/api/v1/exchangeInfo")
+        _EXCHANGE_INFO_CACHE = data
+        _EXCHANGE_INFO_CACHE_AT = now
+        return data
+    except Exception:
+        # Keep a recent known-good symbol map if Binance TH is temporarily
+        # unavailable; current account/trade requests still report their own errors.
+        if _EXCHANGE_INFO_CACHE is not None:
+            return _EXCHANGE_INFO_CACHE
+        raise
 
 
 # =========================================================
