@@ -38,6 +38,7 @@ LEVERAGED_PREFIXES = ("UP", "DOWN", "BULL", "BEAR")
 LEVERAGED_SUFFIXES = ("UP", "DOWN", "BULL", "BEAR")
 
 _cached_symbols = []
+_cached_backup_symbols = []
 _cached_at = 0.0
 _last_market_status = {"status": "NOT_STARTED"}
 _binance_fallback_logged = False
@@ -139,7 +140,7 @@ def is_valid_symbol(symbol):
 
 
 def get_top_symbols():
-    global _cached_symbols, _cached_at
+    global _cached_symbols, _cached_backup_symbols, _cached_at
     now = time.time()
     if _cached_symbols and now - _cached_at < UNIVERSE_REFRESH_SECONDS:
         return list(_cached_symbols)
@@ -170,7 +171,9 @@ def get_top_symbols():
             if volume > 0:
                 candidates.append((normalize_coin(symbol), volume))
         candidates.sort(key=lambda x: x[1], reverse=True)
-        symbols = [x[0] for x in candidates[:TOP_N]]
+        ranked_symbols = [x[0] for x in candidates]
+        symbols = ranked_symbols[:TOP_N]
+        _cached_backup_symbols = ranked_symbols[TOP_N:TOP_N + 30]
         if not symbols:
             raise ValueError("No valid dynamic symbols found")
         _cached_symbols, _cached_at = symbols, now
@@ -264,6 +267,7 @@ def get_market():
     started = time.time()
     result = {}
     failed = []
+    skipped = []
     dynamic, extra, symbols = get_monitor_symbols()
     print(f"Market universe: Top50={len(dynamic)}, WatchlistExtra={len(extra)}, Total={len(symbols)}")
     if extra:
@@ -282,6 +286,36 @@ def get_market():
             except Exception as e:
                 failed.append({"symbol": symbol, "error": str(e)})
                 print(f"Market error for {symbol}: {e}")
+
+    # A newly listed / illiquid symbol may not yet have the 100 hourly
+    # candles required by the indicators. Replace it with the next liquid
+    # symbol from the same ranked Bybit/Binance universe, rather than leaving
+    # the production scan permanently at 49/50. Keep exclusions visible.
+    original_failures = list(failed)
+    backup_iter = iter(_cached_backup_symbols)
+    for unavailable in original_failures:
+        replacement_loaded = False
+        for backup_symbol in backup_iter:
+            if backup_symbol in symbols or backup_symbol[:-4] in result:
+                continue
+            try:
+                coin, data = get_symbol_market_data(backup_symbol)
+                result[coin] = data
+                skipped.append({
+                    "symbol": unavailable["symbol"],
+                    "reason": unavailable["error"],
+                    "replaced_by": backup_symbol,
+                })
+                failed.remove(unavailable)
+                print(f"Market replacement: {unavailable['symbol']} -> {backup_symbol}")
+                replacement_loaded = True
+                break
+            except Exception as backup_error:
+                failed.append({"symbol": backup_symbol, "error": str(backup_error)})
+                print(f"Backup market error for {backup_symbol}: {backup_error}")
+        if not replacement_loaded:
+            print(f"No usable backup found for {unavailable['symbol']}")
+
     duration = round(time.time() - started, 3)
     if failed and result:
         market_status = "partial_success"
@@ -297,6 +331,8 @@ def get_market():
         "total_symbols": len(symbols),
         "successful_count": len(result),
         "failed_count": len(failed),
+        "excluded_count": len(skipped),
+        "excluded_symbols": skipped[:20],
         "duration_seconds": duration,
         "watchlist_extra": [x[:-4] for x in extra],
         "failed_symbols": failed[:20],
@@ -313,8 +349,9 @@ def get_market_status():
 
 
 def refresh_universe():
-    global _cached_symbols, _cached_at
+    global _cached_symbols, _cached_backup_symbols, _cached_at
     _cached_symbols = []
+    _cached_backup_symbols = []
     _cached_at = 0.0
     return get_top_symbols()
 
