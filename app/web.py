@@ -1,74 +1,32 @@
-"""Browser-friendly landing page for the Crypto Alert API.
-
-The API implementation remains in app.main; this module only adds a root page.
-"""
+"""Crypto Alert live dashboard."""
 from fastapi.responses import HTMLResponse, Response
 from app.main import app
 
-
 @app.head("/", include_in_schema=False)
 def home_head():
-    # Render's platform probe may use HEAD; keep it healthy as well as GET.
     return Response(status_code=200, media_type="text/html")
 
-
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def home():
-    return HTMLResponse(
-        content="""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Crypto Alert</title>
-  <style>
-    :root { color-scheme: dark; --bg:#0b1220; --panel:#121d30; --text:#edf3ff; --muted:#9fb0ca; --line:#263650; --accent:#67e8b1; }
-    * { box-sizing:border-box; }
-    body { margin:0; font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-    main { width:min(900px, calc(100% - 32px)); margin:48px auto; }
-    header { padding:28px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(135deg,#15243a,#101827); }
-    h1 { margin:0 0 8px; font-size:clamp(28px,5vw,42px); }
-    p { color:var(--muted); margin:8px 0; }
-    .pill { display:inline-block; border:1px solid #246c55; color:var(--accent); border-radius:99px; padding:4px 10px; font-size:13px; }
-    section { margin-top:22px; }
-    h2 { font-size:18px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-    a.card { display:block; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); color:var(--text); text-decoration:none; }
-    a.card:hover { border-color:var(--accent); transform:translateY(-1px); }
-    a.card strong { display:block; margin-bottom:5px; }
-    code { color:var(--accent); }
-    footer { margin-top:28px; font-size:13px; color:var(--muted); }
-  </style>
-</head>
-<body>
-<main>
-  <header>
-    <span class="pill">API SERVICE ONLINE</span>
-    <h1>Crypto Alert</h1>
-    <p>Market monitoring and Telegram alerts. Trading execution is disabled; signals are for manual review only.</p>
-    <p>Open a service endpoint below to inspect live status and market-monitoring data.</p>
-  </header>
-  <section>
-    <h2>System</h2>
-    <div class="grid">
-      <a class="card" href="/health"><strong>Health</strong><span>Service health, scheduler and configured thresholds</span></a>
-      <a class="card" href="/status"><strong>Status</strong><span>Latest scan timestamps and runtime status</span></a>
-      <a class="card" href="/docs"><strong>API Documentation</strong><span>Interactive API endpoint reference</span></a>
-      <a class="card" href="/openapi.json"><strong>OpenAPI JSON</strong><span>Machine-readable API specification</span></a>
-    </div>
-  </section>
-  <section>
-    <h2>Market monitoring</h2>
-    <div class="grid">
-      <a class="card" href="/watchlist"><strong>Watchlist</strong><span>Tracked coins and watchlist memory</span></a>
-      <a class="card" href="/portfolio"><strong>Portfolio</strong><span>Read-only portfolio data</span></a>
-      <a class="card" href="/positions"><strong>Positions</strong><span>Read-only position data</span></a>
-      <a class="card" href="/scan"><strong>Run scan</strong><span>Manually run a full scan; may take several seconds</span></a>
-    </div>
-  </section>
-  <footer>Crypto Alert · Signals are informational only. No automatic trading is performed.</footer>
-</main>
-</body>
-</html>""",
-        status_code=200,
-    )
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
+def dashboard():
+    return HTMLResponse(r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Crypto Alert Dashboard</title>
+<style>
+:root{color-scheme:dark;--bg:#080e19;--panel:#111c2e;--line:#293852;--txt:#eef4ff;--muted:#91a3bd;--green:#61e5ad;--blue:#86aaff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0,#1a2b45,transparent 45%),var(--bg);color:var(--txt);font:14px/1.5 system-ui,sans-serif}.wrap{max-width:1400px;margin:auto;padding:26px}header,.head,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}header{margin-bottom:24px}h1{font-size:24px;margin:0}h2{font-size:15px;margin:0 0 14px}.muted,small{color:var(--muted)}.pill{border:1px solid #28654e;border-radius:30px;padding:6px 12px;color:var(--green)}button,a{border:1px solid var(--line);border-radius:10px;padding:9px 13px;background:#17243a;color:var(--txt);text-decoration:none;cursor:pointer;font:inherit}button.primary{background:var(--green);color:#06140f;border:0;font-weight:700}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card,.panel{background:linear-gradient(145deg,var(--panel),#0d1727);border:1px solid var(--line);border-radius:15px;padding:17px;min-width:0}.label{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}.value{font-size:27px;font-weight:750;margin:6px 0}.sub{font-size:12px;color:var(--muted)}.tabs{display:flex;gap:8px;margin:20px 0;flex-wrap:wrap}.tab{background:transparent;color:var(--muted);border-color:transparent}.tab.active{background:#17243a;color:white;border-color:var(--line)}.view{display:none}.view.active{display:block}.layout{display:grid;grid-template-columns:1fr 1fr;gap:13px}.panel{margin-bottom:13px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px 7px;border-bottom:1px solid #27364d;text-align:left;white-space:nowrap}th{color:var(--muted);text-transform:uppercase;font-size:10px}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;color:#c5d4e9;font-size:12px}.empty{color:var(--muted);padding:15px}footer{padding:20px 0;color:var(--muted);font-size:12px}@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}}@media(max-width:500px){.wrap{padding:14px}.card,.panel{padding:12px}.value{font-size:22px}}
+</style></head><body><main class="wrap">
+<header><div><h1>₿ Crypto Alert</h1><small>Market intelligence · Read-only monitoring</small></div><div class="actions"><span class="pill" id="conn">Connecting…</span><button onclick="load()">↻ Refresh</button><button class="primary" id="scan" onclick="runScan()">Run scan</button></div></header>
+<div class="grid"><div class="card"><div class="label">Service</div><div class="value" id="service">—</div><div class="sub" id="version">—</div></div><div class="card"><div class="label">Market coverage</div><div class="value" id="market">—</div><div class="sub">Latest market universe</div></div><div class="card"><div class="label">Watchlist</div><div class="value" id="watchcount">—</div><div class="sub">Tracked items</div></div><div class="card"><div class="label">Last scan duration</div><div class="value" id="duration">—</div><div class="sub" id="scantime">—</div></div></div>
+<nav class="tabs"><button class="tab active" data-tab="overview">Overview</button><button class="tab" data-tab="watch">Watchlist</button><button class="tab" data-tab="portfolio">Portfolio</button><button class="tab" data-tab="system">System</button></nav>
+<section class="view active" id="overview"><div class="layout"><div class="panel"><h2>Market data status</h2><div id="marketdata" class="empty">Loading…</div></div><div class="panel"><h2>Latest scan</h2><div id="scaninfo" class="empty">Loading…</div></div><div class="panel"><h2>Strategy & alerts</h2><div id="strategy" class="empty">Loading…</div></div><div class="panel"><h2>Quick access</h2><div class="actions"><a href="/docs">API Docs ↗</a><a href="/health">Health ↗</a><a href="/status">Status ↗</a><a href="/test-alert">Telegram test ↗</a></div><p class="sub">Telegram test sends a clearly labelled test message.</p></div></div></section>
+<section class="view" id="watch"><div class="panel"><h2>Watchlist details</h2><div id="watchtable" class="empty">Loading…</div></div></section>
+<section class="view" id="portfolio"><div class="layout"><div class="panel"><h2>Portfolio · Read only</h2><div id="porttable" class="empty">Loading…</div></div><div class="panel"><h2>Positions · Read only</h2><div id="postable" class="empty">Loading…</div></div></div></section>
+<section class="view" id="system"><div class="layout"><div class="panel"><h2>Health JSON</h2><pre id="healthjson">—</pre></div><div class="panel"><h2>Status JSON</h2><pre id="statusjson">—</pre></div></div></section>
+<footer>Informational signals only · No automatic trading · Portfolio access is read-only.</footer></main>
+<script>
+const el=id=>document.getElementById(id), fmt=x=>x==null?"—":typeof x==="object"?JSON.stringify(x):String(x);
+async function api(p){let r=await fetch(p,{cache:"no-store"}),j=await r.json();if(!r.ok)throw Error(j.message||r.status);return j}
+function table(o){if(!o)return "No data";let a=Array.isArray(o)?o:typeof o==="object"?Object.entries(o).map(([k,v])=>typeof v==="object"&&v?{name:k,...v}:{name:k,value:v}):[];if(!a.length)return "No records";let ks=[...new Set(a.flatMap(x=>Object.keys(x||{})))].slice(0,7);return '<div style="overflow:auto"><table><thead><tr>'+ks.map(k=>'<th>'+k.replaceAll("_"," ")+'</th>').join("")+'</tr></thead><tbody>'+a.slice(0,60).map(x=>'<tr>'+ks.map(k=>'<td>'+fmt(x[k])+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>'}
+async function load(){el("conn").textContent="Refreshing…";try{let [h,s,w,p,pos]=await Promise.all([api("/health"),api("/status"),api("/watchlist"),api("/portfolio"),api("/positions")]);el("conn").textContent="● Connected";el("service").textContent=h.status==="healthy"?"ONLINE":"CHECK";el("version").textContent="Version "+h.version;let m=s.market_data||{};el("market").textContent=(m.total_coins??m.total??"—")+(m.total_coins!=null?"/50":"");el("watchcount").textContent=s.watchlist_count??w.watchlist?.total??"—";el("duration").textContent=s.last_scan_duration_seconds==null?"—":s.last_scan_duration_seconds+"s";el("scantime").textContent=s.last_scan_completed?new Date(s.last_scan_completed).toLocaleString():"No completed scan";el("marketdata").innerHTML=table(m);el("scaninfo").innerHTML='<p>Started: '+fmt(s.last_scan_started)+'</p><p>Completed: '+fmt(s.last_scan_completed)+'</p><p>Duration: '+fmt(s.last_scan_duration_seconds)+' sec</p><p>Error: '+fmt(s.last_scan_error)+'</p>';el("strategy").innerHTML='<p>XRP V7.15 enabled: '+fmt(s.xrp_v715_live?.enabled)+'</p><p>Automatic trading: Disabled</p><p>Portfolio alerts: '+fmt(s.portfolio_alert_status?.status)+'</p>';el("watchtable").innerHTML=table(w.details||w.watchlist||w);el("porttable").innerHTML=table(p.portfolio||p);el("postable").innerHTML=table(pos.positions||pos);el("healthjson").textContent=JSON.stringify(h,null,2);el("statusjson").textContent=JSON.stringify(s,null,2)}catch(e){el("conn").textContent="Connection error";el("service").textContent="ERROR";el("scaninfo").textContent=e.message}}
+async function runScan(){let b=el("scan");b.disabled=true;b.textContent="Scanning…";try{await api("/scan");await load()}catch(e){el("scaninfo").textContent="Scan failed: "+e.message}finally{b.disabled=false;b.textContent="Run scan"}}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab,.view").forEach(x=>x.classList.remove("active"));b.classList.add("active");el(b.dataset.tab).classList.add("active")});load();setInterval(load,30000);
+</script></body></html>""")
