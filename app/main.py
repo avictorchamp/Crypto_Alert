@@ -1627,6 +1627,29 @@ def scheduler_loop():
 
                 result = run_full_scan()
 
+                # Log alert pipeline outcomes on every scheduled scan.
+                # This makes genuine signal delivery and filter decisions
+                # observable without generating synthetic Telegram alerts.
+                watchlist_result = result.get("watchlist") or {}
+                watchlist_items = watchlist_result.get("data") or []
+                alerts_sent = watchlist_result.get("alerts_sent") or []
+                blocked_reasons = {}
+                for item in watchlist_items:
+                    alert_status = item.get("alert_status") or {}
+                    if not alert_status.get("sent"):
+                        reason = alert_status.get("reason", "unknown")
+                        blocked_reasons[reason] = blocked_reasons.get(reason, 0) + 1
+
+                xrp_status = watchlist_result.get("xrp_v715_live") or {}
+                print(
+                    "[Alerts] "
+                    f"evaluated={len(watchlist_items)} "
+                    f"sent={len(alerts_sent)} "
+                    f"blocked={sum(blocked_reasons.values())} "
+                    f"reasons={blocked_reasons} "
+                    f"xrp_sent={bool(xrp_status.get('sent'))}"
+                )
+
                 last_scan_completed = utc_now()
 
                 last_scan_duration = round(
