@@ -3401,10 +3401,23 @@
       "momentum_6h": -0.0031689531578297236,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-13T00:00:00+00:00",
+      "signal_candle_close_ms": 1794528000000,
+      "price": 2019.44,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 63,
+      "risk_reward": 8.63,
+      "volume_ratio": 0.506397439686728,
+      "momentum_6h": 0.0015374391223703654,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-11-12T18:00:00+00:00",
-  "last_run_utc": "2026-11-12T18:07:58.625488+00:00",
+  "latest_signal_utc": "2026-11-13T00:00:00+00:00",
+  "last_run_utc": "2026-11-13T00:06:37.094005+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -3419,31 +3432,31 @@
     "rolling_windows": 900,
     "signal_counts": {
       "WAIT": 857,
-      "volume_gt_1_5": 206,
+      "volume_gt_1_5": 205,
       "SELL WATCH": 43
     },
     "gate_counts": {
-      "bullish_trend": 227,
-      "within_1_5pct_of_100h_support": 335,
+      "bullish_trend": 222,
       "rsi_below_65": 753,
       "risk_reward_at_least_1": 900,
-      "quality_at_least_65": 348,
+      "quality_at_least_65": 344,
       "momentum_gate_pass": 727,
-      "volume_at_least_1_2": 253,
-      "inside_0_5pct_entry_zone": 143
+      "volume_at_least_1_2": 252,
+      "within_1_5pct_of_100h_support": 340,
+      "inside_0_5pct_entry_zone": 144
     },
     "support_lookback_variants": {
       "12": {
-        "WAIT": 845,
-        "BUY SETUP": 7,
-        "locked_entry": 9,
+        "WAIT": 846,
+        "BUY SETUP": 6,
+        "locked_entry": 8,
         "SELL WATCH": 43,
         "STRONG BUY": 5
       },
       "16": {
-        "WAIT": 847,
-        "BUY SETUP": 5,
-        "locked_entry": 8,
+        "WAIT": 848,
+        "BUY SETUP": 4,
+        "locked_entry": 7,
         "SELL WATCH": 43,
         "STRONG BUY": 5
       },
@@ -3493,21 +3506,21 @@
       "losses": 3,
       "breakeven": 0,
       "win_rate_pct": 25.0,
-      "average_net_return_pct": -0.9178,
-      "profit_factor": 0.161,
-      "compounded_net_return_pct": -3.639,
-      "max_drawdown_pct": 3.639,
+      "average_net_return_pct": -0.8493,
+      "profit_factor": 0.171,
+      "compounded_net_return_pct": -3.37,
+      "max_drawdown_pct": 3.37,
       "trades": [
         {
-          "entry_time_utc": "2026-10-06T10:00:00+00:00",
+          "entry_time_utc": "2026-10-06T16:00:00+00:00",
           "exit_time_utc": "2026-10-07T02:00:00+00:00",
-          "entry_price": 2710.49,
+          "entry_price": 2702.97,
           "exit_price": 2670.5349,
           "stop": 2670.5349,
-          "target": 2755.19,
+          "target": 2754.94,
           "exit_reason": "STOP",
-          "gross_return_pct": -1.4741,
-          "net_return_pct": -1.7741
+          "gross_return_pct": -1.2,
+          "net_return_pct": -1.5
         },
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
@@ -3554,21 +3567,21 @@
       "losses": 3,
       "breakeven": 0,
       "win_rate_pct": 25.0,
-      "average_net_return_pct": -0.9178,
-      "profit_factor": 0.161,
-      "compounded_net_return_pct": -3.639,
-      "max_drawdown_pct": 3.639,
+      "average_net_return_pct": -0.8493,
+      "profit_factor": 0.171,
+      "compounded_net_return_pct": -3.37,
+      "max_drawdown_pct": 3.37,
       "trades": [
         {
-          "entry_time_utc": "2026-10-06T10:00:00+00:00",
+          "entry_time_utc": "2026-10-06T16:00:00+00:00",
           "exit_time_utc": "2026-10-07T02:00:00+00:00",
-          "entry_price": 2710.49,
+          "entry_price": 2702.97,
           "exit_price": 2670.5349,
           "stop": 2670.5349,
-          "target": 2755.19,
+          "target": 2754.94,
           "exit_reason": "STOP",
-          "gross_return_pct": -1.4741,
-          "net_return_pct": -1.7741
+          "gross_return_pct": -1.2,
+          "net_return_pct": -1.5
         },
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
