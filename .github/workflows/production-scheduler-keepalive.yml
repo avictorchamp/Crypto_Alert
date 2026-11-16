@@ -1,0 +1,30 @@
+name: Production Scheduler Keepalive
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    name: Keep Render scheduler awake
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping production health endpoint
+        run: |
+          set -euo pipefail
+          url="https://crypto-alert-ob42.onrender.com/health"
+          for attempt in 1 2 3; do
+            code=$(curl -sS --max-time 60 -o health.json -w "%{http_code}" "$url") || code="000"
+            echo "Attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat health.json
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Production health endpoint did not return HTTP 200"
+          exit 1
