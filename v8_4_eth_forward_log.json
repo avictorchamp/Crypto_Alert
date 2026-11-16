@@ -3557,10 +3557,23 @@
       "momentum_6h": 0.010358508419054724,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-16T01:00:00+00:00",
+      "signal_candle_close_ms": 1794790800000,
+      "price": 1814.42,
+      "signal": "WAIT",
+      "confidence": 40,
+      "quality_score": 40,
+      "risk_reward": 15.52,
+      "volume_ratio": 0.9497981751008302,
+      "momentum_6h": -0.0006939548819174801,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-11-15T21:00:00+00:00",
-  "last_run_utc": "2026-11-15T21:39:33.478790+00:00",
+  "latest_signal_utc": "2026-11-16T01:00:00+00:00",
+  "last_run_utc": "2026-11-16T01:50:26.122926+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -3574,61 +3587,60 @@
   "historical_signal_diagnostics": {
     "rolling_windows": 900,
     "signal_counts": {
-      "SELL WATCH": 39,
-      "WAIT": 861,
-      "volume_gt_1_5": 205
+      "WAIT": 867,
+      "SELL WATCH": 33,
+      "volume_gt_1_5": 183
     },
     "gate_counts": {
+      "rsi_below_65": 748,
       "risk_reward_at_least_1": 900,
-      "momentum_gate_pass": 722,
-      "rsi_below_65": 754,
-      "volume_at_least_1_2": 253,
+      "volume_at_least_1_2": 247,
+      "momentum_gate_pass": 724,
       "bullish_trend": 215,
       "quality_at_least_65": 331,
-      "within_1_5pct_of_100h_support": 327,
-      "inside_0_5pct_entry_zone": 135
+      "within_1_5pct_of_100h_support": 333,
+      "inside_0_5pct_entry_zone": 133
     },
     "support_lookback_variants": {
       "12": {
-        "SELL WATCH": 39,
-        "WAIT": 852,
+        "WAIT": 857,
+        "SELL WATCH": 33,
+        "BUY SETUP": 5,
         "STRONG BUY": 5,
-        "locked_entry": 6,
-        "BUY SETUP": 4
+        "locked_entry": 5
       },
       "16": {
-        "SELL WATCH": 39,
-        "WAIT": 854,
+        "WAIT": 859,
+        "SELL WATCH": 33,
+        "BUY SETUP": 3,
         "STRONG BUY": 5,
-        "locked_entry": 5,
-        "BUY SETUP": 2
+        "locked_entry": 3
       },
       "20": {
-        "SELL WATCH": 39,
-        "WAIT": 855,
-        "STRONG BUY": 5,
-        "locked_entry": 5,
-        "BUY SETUP": 1
-      },
-      "24": {
-        "SELL WATCH": 39,
-        "WAIT": 857,
-        "STRONG BUY": 4,
-        "locked_entry": 4
-      },
-      "32": {
-        "SELL WATCH": 39,
-        "WAIT": 859,
+        "WAIT": 863,
+        "SELL WATCH": 33,
+        "BUY SETUP": 2,
         "STRONG BUY": 2,
         "locked_entry": 2
       },
+      "24": {
+        "WAIT": 865,
+        "SELL WATCH": 33,
+        "STRONG BUY": 2,
+        "locked_entry": 1
+      },
+      "32": {
+        "WAIT": 866,
+        "SELL WATCH": 33,
+        "STRONG BUY": 1
+      },
       "48": {
-        "SELL WATCH": 39,
-        "WAIT": 861
+        "WAIT": 867,
+        "SELL WATCH": 33
       },
       "72": {
-        "SELL WATCH": 39,
-        "WAIT": 861
+        "WAIT": 867,
+        "SELL WATCH": 33
       }
     },
     "method": "Production rules compared with candidate support lookbacks of 12/16/20/24/32/48/72 completed candles; resistance remains the 100-candle high",
@@ -3638,48 +3650,59 @@
     "12": {
       "support_lookback": 12,
       "horizon_hours": 24,
-      "trade_count": 3,
+      "trade_count": 4,
       "wins": 1,
-      "losses": 2,
+      "losses": 3,
       "breakeven": 0,
-      "win_rate_pct": 33.33,
-      "average_net_return_pct": -0.6323,
-      "profit_factor": 0.27,
-      "compounded_net_return_pct": -1.898,
-      "max_drawdown_pct": 1.898,
+      "win_rate_pct": 25.0,
+      "average_net_return_pct": -0.9236,
+      "profit_factor": 0.17,
+      "compounded_net_return_pct": -3.662,
+      "max_drawdown_pct": 3.662,
       "trades": [
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
           "exit_time_utc": "2026-10-16T18:00:00+00:00",
-          "entry_price": 2431.37,
-          "exit_price": 2407.0562999999997,
-          "stop": 2407.0563,
-          "target": 2540.51,
+          "entry_price": 2431.32,
+          "exit_price": 2407.0068,
+          "stop": 2407.0068,
+          "target": 2542.02,
           "exit_reason": "STOP",
           "gross_return_pct": -1.0,
           "net_return_pct": -1.3
+        },
+        {
+          "entry_time_utc": "2026-10-19T15:00:00+00:00",
+          "exit_time_utc": "2026-10-20T02:00:00+00:00",
+          "entry_price": 2411.35,
+          "exit_price": 2376.8118,
+          "stop": 2376.8118,
+          "target": 2477.77,
+          "exit_reason": "STOP",
+          "gross_return_pct": -1.4323,
+          "net_return_pct": -1.7323
         },
         {
           "entry_time_utc": "2026-11-01T13:00:00+00:00",
           "exit_time_utc": "2026-11-02T13:00:00+00:00",
-          "entry_price": 2262.3,
-          "exit_price": 2284.99,
-          "stop": 2239.677,
-          "target": 2371.56,
+          "entry_price": 2261.9,
+          "exit_price": 2285.82,
+          "stop": 2239.281,
+          "target": 2373.29,
           "exit_reason": "TIME",
-          "gross_return_pct": 1.003,
-          "net_return_pct": 0.703
+          "gross_return_pct": 1.0575,
+          "net_return_pct": 0.7575
         },
         {
-          "entry_time_utc": "2026-11-02T16:00:00+00:00",
+          "entry_time_utc": "2026-11-02T14:00:00+00:00",
           "exit_time_utc": "2026-11-02T18:00:00+00:00",
-          "entry_price": 2269.5,
-          "exit_price": 2246.805,
-          "stop": 2246.805,
-          "target": 2369.44,
+          "entry_price": 2287.38,
+          "exit_price": 2261.7738,
+          "stop": 2261.7738,
+          "target": 2369.06,
           "exit_reason": "STOP",
-          "gross_return_pct": -1.0,
-          "net_return_pct": -1.3
+          "gross_return_pct": -1.1195,
+          "net_return_pct": -1.4195
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
@@ -3693,43 +3716,43 @@
       "losses": 2,
       "breakeven": 0,
       "win_rate_pct": 33.33,
-      "average_net_return_pct": -0.6323,
-      "profit_factor": 0.27,
-      "compounded_net_return_pct": -1.898,
-      "max_drawdown_pct": 1.898,
+      "average_net_return_pct": -0.7583,
+      "profit_factor": 0.25,
+      "compounded_net_return_pct": -2.275,
+      "max_drawdown_pct": 3.01,
       "trades": [
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
           "exit_time_utc": "2026-10-16T18:00:00+00:00",
-          "entry_price": 2431.37,
-          "exit_price": 2407.0562999999997,
-          "stop": 2407.0563,
-          "target": 2540.51,
+          "entry_price": 2431.32,
+          "exit_price": 2407.0068,
+          "stop": 2407.0068,
+          "target": 2542.02,
           "exit_reason": "STOP",
           "gross_return_pct": -1.0,
           "net_return_pct": -1.3
+        },
+        {
+          "entry_time_utc": "2026-10-19T15:00:00+00:00",
+          "exit_time_utc": "2026-10-20T02:00:00+00:00",
+          "entry_price": 2411.35,
+          "exit_price": 2376.8118,
+          "stop": 2376.8118,
+          "target": 2477.77,
+          "exit_reason": "STOP",
+          "gross_return_pct": -1.4323,
+          "net_return_pct": -1.7323
         },
         {
           "entry_time_utc": "2026-11-01T13:00:00+00:00",
           "exit_time_utc": "2026-11-02T13:00:00+00:00",
-          "entry_price": 2262.3,
-          "exit_price": 2284.99,
-          "stop": 2231.2719,
-          "target": 2371.56,
+          "entry_price": 2261.9,
+          "exit_price": 2285.82,
+          "stop": 2232.2025,
+          "target": 2373.29,
           "exit_reason": "TIME",
-          "gross_return_pct": 1.003,
-          "net_return_pct": 0.703
-        },
-        {
-          "entry_time_utc": "2026-11-02T16:00:00+00:00",
-          "exit_time_utc": "2026-11-02T18:00:00+00:00",
-          "entry_price": 2269.5,
-          "exit_price": 2246.805,
-          "stop": 2246.805,
-          "target": 2369.44,
-          "exit_reason": "STOP",
-          "gross_return_pct": -1.0,
-          "net_return_pct": -1.3
+          "gross_return_pct": 1.0575,
+          "net_return_pct": 0.7575
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
@@ -3738,23 +3761,23 @@
     "20": {
       "support_lookback": 20,
       "horizon_hours": 24,
-      "trade_count": 3,
-      "wins": 2,
+      "trade_count": 2,
+      "wins": 1,
       "losses": 1,
       "breakeven": 0,
-      "win_rate_pct": 66.67,
-      "average_net_return_pct": 0.1503,
-      "profit_factor": 1.347,
-      "compounded_net_return_pct": 0.435,
+      "win_rate_pct": 50.0,
+      "average_net_return_pct": -0.2713,
+      "profit_factor": 0.583,
+      "compounded_net_return_pct": -0.552,
       "max_drawdown_pct": 1.3,
       "trades": [
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
           "exit_time_utc": "2026-10-16T18:00:00+00:00",
-          "entry_price": 2431.37,
-          "exit_price": 2407.0562999999997,
-          "stop": 2407.0563,
-          "target": 2540.51,
+          "entry_price": 2431.32,
+          "exit_price": 2407.0068,
+          "stop": 2407.0068,
+          "target": 2542.02,
           "exit_reason": "STOP",
           "gross_return_pct": -1.0,
           "net_return_pct": -1.3
@@ -3762,24 +3785,13 @@
         {
           "entry_time_utc": "2026-11-01T13:00:00+00:00",
           "exit_time_utc": "2026-11-02T13:00:00+00:00",
-          "entry_price": 2262.3,
-          "exit_price": 2284.99,
-          "stop": 2231.2719,
-          "target": 2371.56,
+          "entry_price": 2261.9,
+          "exit_price": 2285.82,
+          "stop": 2231.4006,
+          "target": 2373.29,
           "exit_reason": "TIME",
-          "gross_return_pct": 1.003,
-          "net_return_pct": 0.703
-        },
-        {
-          "entry_time_utc": "2026-11-02T16:00:00+00:00",
-          "exit_time_utc": "2026-11-03T16:00:00+00:00",
-          "entry_price": 2269.5,
-          "exit_price": 2300.09,
-          "stop": 2235.8556,
-          "target": 2369.44,
-          "exit_reason": "TIME",
-          "gross_return_pct": 1.3479,
-          "net_return_pct": 1.0479
+          "gross_return_pct": 1.0575,
+          "net_return_pct": 0.7575
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
@@ -3788,37 +3800,26 @@
     "24": {
       "support_lookback": 24,
       "horizon_hours": 24,
-      "trade_count": 2,
+      "trade_count": 1,
       "wins": 0,
-      "losses": 2,
+      "losses": 1,
       "breakeven": 0,
       "win_rate_pct": 0.0,
-      "average_net_return_pct": -0.9284,
+      "average_net_return_pct": -1.3,
       "profit_factor": 0.0,
-      "compounded_net_return_pct": -1.849,
-      "max_drawdown_pct": 1.849,
+      "compounded_net_return_pct": -1.3,
+      "max_drawdown_pct": 1.3,
       "trades": [
         {
           "entry_time_utc": "2026-10-16T16:00:00+00:00",
           "exit_time_utc": "2026-10-16T18:00:00+00:00",
-          "entry_price": 2431.37,
-          "exit_price": 2407.0562999999997,
-          "stop": 2407.0563,
-          "target": 2540.51,
+          "entry_price": 2431.32,
+          "exit_price": 2407.0068,
+          "stop": 2407.0068,
+          "target": 2542.02,
           "exit_reason": "STOP",
           "gross_return_pct": -1.0,
           "net_return_pct": -1.3
-        },
-        {
-          "entry_time_utc": "2026-11-01T20:00:00+00:00",
-          "exit_time_utc": "2026-11-02T20:00:00+00:00",
-          "entry_price": 2259.23,
-          "exit_price": 2253.43,
-          "stop": 2231.2719,
-          "target": 2371.56,
-          "exit_reason": "TIME",
-          "gross_return_pct": -0.2567,
-          "net_return_pct": -0.5567
         }
       ],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
@@ -3827,28 +3828,16 @@
     "32": {
       "support_lookback": 32,
       "horizon_hours": 24,
-      "trade_count": 1,
+      "trade_count": 0,
       "wins": 0,
-      "losses": 1,
+      "losses": 0,
       "breakeven": 0,
-      "win_rate_pct": 0.0,
-      "average_net_return_pct": -0.3726,
-      "profit_factor": 0.0,
-      "compounded_net_return_pct": -0.373,
-      "max_drawdown_pct": 0.373,
-      "trades": [
-        {
-          "entry_time_utc": "2026-11-01T23:00:00+00:00",
-          "exit_time_utc": "2026-11-02T23:00:00+00:00",
-          "entry_price": 2258.44,
-          "exit_price": 2256.8,
-          "stop": 2228.4504,
-          "target": 2371.56,
-          "exit_reason": "TIME",
-          "gross_return_pct": -0.0726,
-          "net_return_pct": -0.3726
-        }
-      ],
+      "win_rate_pct": null,
+      "average_net_return_pct": null,
+      "profit_factor": null,
+      "compounded_net_return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "trades": [],
       "cost_assumption": "round-trip fee + slippage = 2 * (0.10% + 0.05%)",
       "same_candle_stop_target_rule": "assume stop loss first"
     },
