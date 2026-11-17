@@ -1033,6 +1033,32 @@
       "ema20": 72.91382780982727,
       "ema50": 76.20398542221211,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-15T23:00:00+00:00",
+      "signal_candle_close_ms": 1794783600000,
+      "signal": false,
+      "price": 72.79,
+      "regime": "BEAR",
+      "rsi": 60.32719836400823,
+      "volume_ratio": 2.543011409967134,
+      "risk_reward": 0.01719197707736043,
+      "ema20": 71.73159581931036,
+      "ema50": 72.93331131453682,
+      "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-16T23:00:00+00:00",
+      "signal_candle_close_ms": 1794870000000,
+      "signal": false,
+      "price": 71.59,
+      "regime": "BEAR",
+      "rsi": 56.557377049180296,
+      "volume_ratio": 0.5304918385806883,
+      "risk_reward": 0.2583328082666466,
+      "ema20": 71.4600794015644,
+      "ema50": 71.13683445348543,
+      "status": "NO_TRADE"
     }
   ],
   "production_changed": false,
@@ -1047,8 +1073,8 @@
     "max_drawdown_pct": 0.0,
     "open_trades": 0
   },
-  "last_run_utc": "2026-11-15T06:49:33.621930+00:00",
-  "latest_observation_utc": "2026-11-14T23:00:00+00:00",
-  "candles_1h": 4040,
-  "candles_1d": 169
+  "last_run_utc": "2026-11-17T08:08:28.643267+00:00",
+  "latest_observation_utc": "2026-11-16T23:00:00+00:00",
+  "candles_1h": 4090,
+  "candles_1d": 171
 }
