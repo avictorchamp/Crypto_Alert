@@ -3882,10 +3882,23 @@
       "momentum_6h": 0.007372156516553652,
       "locked_entry": false,
       "status": "NO_TRADE"
+    },
+    {
+      "signal_time_utc": "2026-11-23T21:00:00+00:00",
+      "signal_candle_close_ms": 1795467600000,
+      "price": 1725.36,
+      "signal": "WAIT",
+      "confidence": 60,
+      "quality_score": 70,
+      "risk_reward": 12.58,
+      "volume_ratio": 1.3937690277165062,
+      "momentum_6h": -0.030560471976401216,
+      "locked_entry": false,
+      "status": "NO_TRADE"
     }
   ],
-  "latest_signal_utc": "2026-11-23T08:00:00+00:00",
-  "last_run_utc": "2026-11-23T08:52:57.866506+00:00",
+  "latest_signal_utc": "2026-11-23T21:00:00+00:00",
+  "last_run_utc": "2026-11-23T21:11:27.408060+00:00",
   "candles_1h_completed": 999,
   "summary": {
     "closed_trades": 0,
@@ -3899,61 +3912,61 @@
   "historical_signal_diagnostics": {
     "rolling_windows": 900,
     "signal_counts": {
-      "WAIT": 869,
-      "SELL WATCH": 31,
-      "volume_gt_1_5": 203
+      "SELL WATCH": 30,
+      "WAIT": 870,
+      "volume_gt_1_5": 210
     },
     "gate_counts": {
-      "rsi_below_65": 766,
       "risk_reward_at_least_1": 900,
-      "momentum_gate_pass": 711,
-      "volume_at_least_1_2": 253,
+      "momentum_gate_pass": 710,
+      "rsi_below_65": 764,
+      "volume_at_least_1_2": 261,
       "within_1_5pct_of_100h_support": 337,
       "inside_0_5pct_entry_zone": 128,
-      "quality_at_least_65": 321,
-      "bullish_trend": 196
+      "quality_at_least_65": 332,
+      "bullish_trend": 209
     },
     "support_lookback_variants": {
       "12": {
-        "WAIT": 861,
-        "SELL WATCH": 31,
+        "SELL WATCH": 30,
+        "WAIT": 862,
         "BUY SETUP": 4,
         "locked_entry": 5,
         "STRONG BUY": 4
       },
       "16": {
-        "WAIT": 863,
-        "SELL WATCH": 31,
+        "SELL WATCH": 30,
+        "WAIT": 864,
         "BUY SETUP": 2,
         "locked_entry": 4,
         "STRONG BUY": 4
       },
       "20": {
-        "WAIT": 864,
-        "SELL WATCH": 31,
+        "SELL WATCH": 30,
+        "WAIT": 865,
         "BUY SETUP": 1,
         "locked_entry": 4,
         "STRONG BUY": 4
       },
       "24": {
-        "WAIT": 866,
-        "SELL WATCH": 31,
+        "SELL WATCH": 30,
+        "WAIT": 867,
         "STRONG BUY": 3,
         "locked_entry": 3
       },
       "32": {
-        "WAIT": 867,
-        "SELL WATCH": 31,
+        "SELL WATCH": 30,
+        "WAIT": 868,
         "STRONG BUY": 2,
         "locked_entry": 2
       },
       "48": {
-        "WAIT": 869,
-        "SELL WATCH": 31
+        "SELL WATCH": 30,
+        "WAIT": 870
       },
       "72": {
-        "WAIT": 869,
-        "SELL WATCH": 31
+        "SELL WATCH": 30,
+        "WAIT": 870
       }
     },
     "method": "Production rules compared with candidate support lookbacks of 12/16/20/24/32/48/72 completed candles; resistance remains the 100-candle high",
